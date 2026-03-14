@@ -1,0 +1,3 @@
+sentence-transformers
+unstructured[all-docs]
+numpy

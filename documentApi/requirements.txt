@@ -1,0 +1,13 @@
+fastapi>=0.115,<1
+uvicorn[standard]>=0.34,<1
+python-multipart>=0.0.18
+sentence-transformers>=3.3,<4
+unstructured[all-docs]>=0.16,<1
+numpy>=1.26,<3
+pypdf>=5.0,<6
+psycopg2-binary>=2.9,<3
+pydantic>=2.10,<3
+pydantic-settings>=2.7,<3
+sse-starlette>=2.2,<3
+cryptography>=44.0,<45
+openai>=1.60,<2

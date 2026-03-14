@@ -1,0 +1,30 @@
+{
+  "name": "rag-ingest-studio",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "documentHandling/apps/*",
+    "documentHandling/packages/*",
+    "chatBot/apps/*",
+    "chatBot/packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently -k \"npm run dev:renderer\" \"npm run dev:main\"",
+    "dev:renderer": "npm run dev --workspace @rag/renderer",
+    "dev:main": "wait-on tcp:5173 && npm run dev --workspace @rag/main",
+    "build": "npm run build --workspace @rag/renderer && npm run build --workspace @rag/main",
+    "start": "npm run build && npm run start --workspace @rag/main",
+    "start:quick": "npm run start --workspace @rag/main",
+    "typecheck": "npm run typecheck --workspace @rag/renderer && npm run typecheck --workspace @rag/main",
+    "dev:chat": "concurrently -k \"npm run dev:chat-renderer\" \"npm run dev:chat-main\"",
+    "dev:chat-renderer": "npm run dev --workspace @ragchat/renderer",
+    "dev:chat-main": "wait-on tcp:5174 && npm run dev --workspace @ragchat/main",
+    "build:chat": "npm run build --workspace @ragchat/renderer && npm run build --workspace @ragchat/main",
+    "start:chat": "npm run build:chat && npm run start --workspace @ragchat/main"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1",
+    "cross-env": "^10.1.0",
+    "wait-on": "^8.0.5"
+  }
+}

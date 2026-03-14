@@ -1,0 +1,22 @@
+{
+  "name": "rag-chatbot",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently -k \"npm run dev:renderer\" \"npm run dev:main\"",
+    "dev:renderer": "npm run dev --workspace @ragchat/renderer",
+    "dev:main": "wait-on tcp:5174 && npm run dev --workspace @ragchat/main",
+    "build": "npm run build --workspace @ragchat/renderer && npm run build --workspace @ragchat/main",
+    "start": "npm run build && npm run start --workspace @ragchat/main",
+    "typecheck": "npm run typecheck --workspace @ragchat/renderer && npm run typecheck --workspace @ragchat/main"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1",
+    "cross-env": "^10.1.0",
+    "wait-on": "^8.0.5"
+  }
+}

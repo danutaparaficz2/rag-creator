@@ -1,0 +1,83 @@
+import { useState, useCallback, useMemo } from "react";
+const translations = {
+    de: {
+        "app.title": "RAG Chatbot",
+        "app.subtitle": "Dokumentenbasierte KI-Assistenz",
+        "sidebar.llmConfig": "LLM Konfiguration",
+        "sidebar.apiKey": "API Key",
+        "sidebar.baseUrl": "Base URL",
+        "sidebar.model": "Modell",
+        "sidebar.temperature": "Temperatur",
+        "sidebar.maxTokens": "Max Tokens",
+        "sidebar.topK": "Top K (Kontext-Chunks)",
+        "sidebar.systemPrompt": "System Prompt",
+        "sidebar.saveSettings": "Einstellungen speichern",
+        "sidebar.clearChat": "Chat leeren",
+        "sidebar.language": "Sprache",
+        "status.connected": "API verbunden",
+        "status.disconnected": "API nicht erreichbar",
+        "chat.placeholder": "Schreibe eine Nachricht... (Enter zum Senden, Shift+Enter für Zeilenumbruch)",
+        "chat.emptyState": "Stelle eine Frage zu deinen Dokumenten",
+        "chat.you": "Du",
+        "chat.ai": "KI",
+        "chat.sourcesUsed": "Quellen verwendet",
+        "chat.relevance": "Relevanz",
+        "chat.error": "Fehler bei der Anfrage",
+        "notify.settingsSaved": "Einstellungen gespeichert.",
+        "notify.error": "Fehler",
+    },
+    en: {
+        "app.title": "RAG Chatbot",
+        "app.subtitle": "Document-based AI Assistant",
+        "sidebar.llmConfig": "LLM Configuration",
+        "sidebar.apiKey": "API Key",
+        "sidebar.baseUrl": "Base URL",
+        "sidebar.model": "Model",
+        "sidebar.temperature": "Temperature",
+        "sidebar.maxTokens": "Max Tokens",
+        "sidebar.topK": "Top K (Context Chunks)",
+        "sidebar.systemPrompt": "System Prompt",
+        "sidebar.saveSettings": "Save Settings",
+        "sidebar.clearChat": "Clear Chat",
+        "sidebar.language": "Language",
+        "status.connected": "API connected",
+        "status.disconnected": "API not reachable",
+        "chat.placeholder": "Type a message... (Enter to send, Shift+Enter for line break)",
+        "chat.emptyState": "Ask a question about your documents",
+        "chat.you": "You",
+        "chat.ai": "AI",
+        "chat.sourcesUsed": "sources used",
+        "chat.relevance": "Relevance",
+        "chat.error": "Request error",
+        "notify.settingsSaved": "Settings saved.",
+        "notify.error": "Error",
+    },
+};
+const STORAGE_KEY = "rag-chat-locale";
+function getInitialLocale() {
+    try {
+        const stored = localStorage.getItem(STORAGE_KEY);
+        if (stored === "de" || stored === "en")
+            return stored;
+    }
+    catch { }
+    return navigator.language.startsWith("de") ? "de" : "en";
+}
+export function useI18n() {
+    const [locale, setLocaleState] = useState(getInitialLocale);
+    const setLocale = useCallback((newLocale) => {
+        setLocaleState(newLocale);
+        try {
+            localStorage.setItem(STORAGE_KEY, newLocale);
+        }
+        catch { }
+    }, []);
+    const t = useCallback((key, ...args) => {
+        let text = translations[locale][key] ?? key;
+        args.forEach((arg, i) => {
+            text = text.replace(`{${i}}`, arg);
+        });
+        return text;
+    }, [locale]);
+    return useMemo(() => ({ locale, setLocale, t }), [locale, setLocale, t]);
+}

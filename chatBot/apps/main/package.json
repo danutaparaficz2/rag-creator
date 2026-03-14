@@ -1,0 +1,22 @@
+{
+  "name": "@ragchat/main",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "cross-env NODE_OPTIONS=\"--import tsx/esm\" electron src/index.ts",
+    "build": "tsc -p tsconfig.json && node scripts/copy-preload.mjs",
+    "start": "cross-env NODE_ENV=production electron dist/index.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@ragchat/shared": "1.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.3.0",
+    "electron": "^38.1.0",
+    "tsx": "^4.20.4",
+    "typescript": "^5.9.2"
+  }
+}
