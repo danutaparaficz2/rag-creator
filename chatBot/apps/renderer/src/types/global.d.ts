@@ -1,5 +1,22 @@
 import type { ChatLocale, ChatMessage, ChatResponse, ChatSettings } from "@ragchat/shared";
 
+interface PostgresEnvironment {
+  id: string;
+  name: string;
+  dbHost: string;
+  dbPort: number;
+  dbName: string;
+  dbUser: string;
+  dbPassword: string;
+  dbSchema: string;
+  dbTableName: string;
+}
+
+interface AppSettings {
+  activePostgresEnvironmentId: string;
+  postgresEnvironments: PostgresEnvironment[];
+}
+
 declare global {
   interface Window {
     chatApi: {
@@ -7,6 +24,8 @@ declare global {
       getChatSettings: () => Promise<ChatSettings>;
       saveChatSettings: (settings: ChatSettings) => Promise<ChatSettings>;
       healthCheck: () => Promise<{ status: string; message: string }>;
+      getSettings: () => Promise<AppSettings>;
+      saveSettings: (settings: AppSettings) => Promise<AppSettings>;
     };
   }
 }

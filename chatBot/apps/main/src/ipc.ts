@@ -1,6 +1,6 @@
 import { ipcMain } from "electron";
 import type { ChatLocale, ChatMessage, ChatSettings } from "@ragchat/shared";
-import { ChatApiClient } from "./services/chatApiClient.js";
+import { ChatApiClient, type AppSettings } from "./services/chatApiClient.js";
 
 export function registerIpcHandlers(apiClient: ChatApiClient): void {
   ipcMain.handle(
@@ -25,5 +25,13 @@ export function registerIpcHandlers(apiClient: ChatApiClient): void {
 
   ipcMain.handle("chat:health", () => {
     return apiClient.healthCheck();
+  });
+
+  ipcMain.handle("settings:get", () => {
+    return apiClient.getAppSettings();
+  });
+
+  ipcMain.handle("settings:save", async (_event, settings: AppSettings) => {
+    return apiClient.saveAppSettings(settings);
   });
 }

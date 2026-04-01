@@ -222,7 +222,7 @@ class PostgresVectorService:
         try:
             with conn.cursor() as cur:
                 cur.execute(
-                    f"""SELECT text_content, document_id, file_name, chunk_index,
+                    f"""SELECT text_content, document_id, file_name, chunk_index, source_path, source,
                                1 - (embedding <=> %s::vector) AS similarity
                         FROM {qualified}
                         ORDER BY embedding <=> %s::vector
@@ -236,7 +236,9 @@ class PostgresVectorService:
                     "documentId": row[1],
                     "fileName": row[2],
                     "chunkIndex": row[3],
-                    "similarity": float(row[4]),
+                    "sourcePath": row[4],
+                    "source": row[5],
+                    "similarity": float(row[6]),
                 }
                 for row in rows
             ]

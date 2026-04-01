@@ -22,6 +22,8 @@ export interface ContextChunk {
   documentId: string;
   fileName: string;
   chunkIndex: number;
+  sourcePath?: string;
+  source?: string;
   similarity: number;
 }
 

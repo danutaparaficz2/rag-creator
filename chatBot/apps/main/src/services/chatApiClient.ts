@@ -2,6 +2,23 @@ import type { ChatLocale, ChatMessage, ChatResponse, ChatSettings } from "@ragch
 
 const DEFAULT_BASE_URL = "http://localhost:8000";
 
+export interface PostgresEnvironment {
+  id: string;
+  name: string;
+  dbHost: string;
+  dbPort: number;
+  dbName: string;
+  dbUser: string;
+  dbPassword: string;
+  dbSchema: string;
+  dbTableName: string;
+}
+
+export interface AppSettings {
+  activePostgresEnvironmentId: string;
+  postgresEnvironments: PostgresEnvironment[];
+}
+
 export class ChatApiClient {
   private baseUrl: string;
 
@@ -27,6 +44,14 @@ export class ChatApiClient {
 
   public async healthCheck(): Promise<{ status: string; message: string }> {
     return this.get("/api/health");
+  }
+
+  public async getAppSettings(): Promise<AppSettings> {
+    return this.get<AppSettings>("/api/settings");
+  }
+
+  public async saveAppSettings(settings: AppSettings): Promise<AppSettings> {
+    return this.put<AppSettings>("/api/settings", settings);
   }
 
   private async get<T>(path: string): Promise<T> {

@@ -119,6 +119,16 @@ class UploadOptions(BaseModel):
     source: str = "lokal"
 
 
+class UploadFolderRequest(BaseModel):
+    folder_path: str = Field(alias="folderPath")
+    tags: list[str] = Field(default_factory=list)
+    source: str = "lokal"
+    offset: int = 0
+    batch_size: int = Field(default=400, alias="batchSize")
+
+    model_config = {"populate_by_name": True}
+
+
 class AddDocumentsResult(BaseModel):
     """Antwort POST /api/documents/upload (inkl. uebersprungener Duplikate)."""
 

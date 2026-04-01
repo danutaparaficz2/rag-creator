@@ -1,8 +1,6 @@
-import path from "node:path";
 import { BrowserWindow, dialog, ipcMain } from "electron";
 import type { AppSettings, UploadOptions } from "@rag/shared";
 import { ApiClient } from "./services/apiClient.js";
-import { collectFilesRecursive } from "./services/collectFolderFiles.js";
 
 async function uploadFolderContents(
   apiClient: ApiClient,
@@ -15,26 +13,12 @@ async function uploadFolderContents(
   fileCount: number;
 }> {
   console.log("[ipc] uploadFolderContents: root =", folderPath);
-  let filePaths: string[];
   try {
-    filePaths = await collectFilesRecursive(folderPath);
-  } catch (err) {
-    console.error("[ipc] uploadFolderContents: collectFilesRecursive failed", err);
-    throw err;
-  }
-  console.log("[ipc] uploadFolderContents: files found =", filePaths.length);
-  if (filePaths.length === 0) {
-    return { queuedDocIds: [], skippedDocIds: [], messages: [], fileCount: 0 };
-  }
-  const root = path.resolve(folderPath);
-  try {
-    const upload = await apiClient.uploadFiles(filePaths, options, (fp) =>
-      path.relative(root, path.resolve(fp)).split(path.sep).join("/")
-    );
+    const upload = await apiClient.uploadFolderPath(folderPath, options);
     console.log("[ipc] uploadFolderContents: queued doc ids =", upload.queuedDocIds?.length ?? 0);
-    return { ...upload, fileCount: filePaths.length };
+    return upload;
   } catch (err) {
-    console.error("[ipc] uploadFolderContents: uploadFiles failed", err);
+    console.error("[ipc] uploadFolderContents: uploadFolderPath failed", err);
     throw err;
   }
 }
@@ -131,6 +115,9 @@ export function registerIpcHandlers(mainWindow: BrowserWindow, apiClient: ApiCli
 
   ipcMain.handle("documents:remove-bulk", async (_event, docIds: string[]) => {
     return apiClient.removeDocuments(docIds);
+  });
+  ipcMain.handle("documents:remove-not-ingested", async () => {
+    return apiClient.removeNotIngestedDocuments();
   });
 
   ipcMain.handle("corpus:get", async (_event, docId: string) => apiClient.getCorpus(docId));

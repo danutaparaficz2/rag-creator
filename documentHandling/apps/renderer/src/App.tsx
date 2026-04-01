@@ -473,10 +473,20 @@ export default function App() {
     await reloadDocuments();
   }
 
+  async function removeNotIngestedDocuments(): Promise<void> {
+    const res = await window.ragApi.removeNotIngestedDocuments();
+    setSelectedDocumentIds([]);
+    await reloadDocuments();
+    appendFolderLog(`cleanup: ${res.removedCount} nicht eingelesene Dokumente entfernt`);
+    setHealthMessage(`Nicht eingelesene Dokumente entfernt: ${res.removedCount}`);
+  }
+
   async function saveSettings(): Promise<void> {
     const persisted = await window.ragApi.saveSettings(settings);
     setSettings(persisted);
     setIsConnectionReady(false);
+    setSelectedDocumentIds([]);
+    await reloadDocuments();
     setHealthMessage(t("settings.saved"));
   }
 
@@ -489,6 +499,10 @@ export default function App() {
     try {
       const result = await window.ragApi.testDatabaseConnection(settings);
       setIsConnectionReady(result.status === "ok");
+      if (result.status === "ok") {
+        setSelectedDocumentIds([]);
+        await reloadDocuments();
+      }
       setHealthMessage(result.message);
       setConnectionTestLastResponse(JSON.stringify(result, null, 2));
     } catch (err: unknown) {
@@ -546,6 +560,9 @@ export default function App() {
               </button>
               <button onClick={() => void removeSelectedDocuments()} disabled={selectedDocumentIds.length === 0}>
                 {t("header.removeSelected")}
+              </button>
+              <button onClick={() => void removeNotIngestedDocuments()}>
+                Alle nicht eingelesenen entfernen
               </button>
               <button onClick={() => void exportCsv()}>{t("header.exportCsv")}</button>
             </>

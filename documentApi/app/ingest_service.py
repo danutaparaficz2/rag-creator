@@ -8,6 +8,7 @@ import json
 import time
 import uuid
 from collections.abc import Callable
+from pathlib import Path
 from typing import Any
 
 from .config import _DEFAULT_SETTINGS, load_settings, save_settings as persist_settings
@@ -26,6 +27,7 @@ from .models import (
     UploadOptions,
 )
 from .services.thread_pool import run_in_worker_pool
+from .services.folder_scan import iter_files_recursive
 from .vector_service import PostgresVectorService
 from .worker import embed_texts, parse_document
 
@@ -52,6 +54,9 @@ class IngestService:
     def _active_pg(self) -> PostgresEnvironment:
         return self._settings.get_active_postgres()
 
+    def _active_environment_id(self) -> str:
+        return self._settings.active_postgres_environment_id
+
     async def initialize(self) -> None:
         self._settings = load_settings()
         pg = self._active_pg()
@@ -64,14 +69,15 @@ class IngestService:
             schema=pg.db_schema,
         )
         # In-Memory-Queue ist nach Neustart leer; SQLite kennt noch queued/processing.
-        n_reset, n_jobs = self._db.recover_after_api_restart()
+        env_id = self._active_environment_id()
+        n_reset, n_jobs = self._db.recover_after_api_restart(env_id)
         if n_reset or n_jobs:
             _logger.info(
                 "startup recovery: %s Docs (processing->queued), %s alte Jobs abgebrochen",
                 n_reset,
                 n_jobs,
             )
-        pending = self._db.list_doc_ids_by_status(DocumentStatus.queued.value)
+        pending = self._db.list_doc_ids_by_status(DocumentStatus.queued.value, env_id)
         if pending:
             _logger.info(
                 "startup: %s wartende Dokumente wieder in die Verarbeitungsqueue",
@@ -94,10 +100,10 @@ class IngestService:
         return unsubscribe
 
     def list_documents(self) -> list[DocumentRecord]:
-        return self._db.list_documents()
+        return self._db.list_documents(self._active_environment_id())
 
     def list_jobs(self) -> list[JobRecord]:
-        return self._db.list_jobs()
+        return self._db.list_jobs(self._active_environment_id())
 
     async def add_documents(
         self,
@@ -121,7 +127,7 @@ class IngestService:
                     continue
                 seen_hashes.add(doc_id)
 
-                existing = self._db.get_document(doc_id)
+                existing = self._db.get_document(doc_id, self._active_environment_id())
                 if existing is not None:
                     if (
                         existing.status == DocumentStatus.done
@@ -154,6 +160,7 @@ class IngestService:
                 )
                 doc_id = stored["docId"]
                 self._db.upsert_document(
+                    environment_id=self._active_environment_id(),
                     doc_id=doc_id,
                     file_name=stored["fileName"],
                     file_path=stored["destinationPath"],
@@ -186,8 +193,111 @@ class IngestService:
             messages=messages,
         )
 
+    async def add_documents_from_folder_path(
+        self,
+        folder_path: str,
+        options: UploadOptions,
+        *,
+        offset: int = 0,
+        batch_size: int = 400,
+    ) -> tuple[AddDocumentsResult, int, int, bool]:
+        self._ensure_db_validated()
+        files = iter_files_recursive(folder_path)
+        file_count = len(files)
+        if not files:
+            return (
+                AddDocumentsResult(
+                    queued_doc_ids=[],
+                    skipped_doc_ids=[],
+                    messages=[f"Ordner ist leer: {folder_path}"],
+                ),
+                0,
+                0,
+                True,
+            )
+        safe_offset = max(0, offset)
+        safe_batch_size = min(2000, max(1, batch_size))
+        subset = files[safe_offset : safe_offset + safe_batch_size]
+        next_offset = safe_offset + len(subset)
+        done = next_offset >= file_count
+
+        queued_ids: list[str] = []
+        skipped_ids: list[str] = []
+        messages: list[str] = []
+        seen_hashes: set[str] = set()
+
+        for absolute_path, relative_name in subset:
+            try:
+                content = Path(absolute_path).read_bytes()
+                doc_id = create_sha256(content)
+                if doc_id in seen_hashes:
+                    skipped_ids.append(doc_id)
+                    messages.append(
+                        f"Duplikat im Ordner uebersprungen: {relative_name}"
+                    )
+                    continue
+                seen_hashes.add(doc_id)
+
+                existing = self._db.get_document(doc_id, self._active_environment_id())
+                if existing is not None:
+                    if existing.status == DocumentStatus.done and existing.chunk_count > 0:
+                        skipped_ids.append(doc_id)
+                        messages.append(
+                            f"Unveraendert (Hash gleich), uebersprungen: {relative_name}"
+                        )
+                        continue
+                    if existing.status in (DocumentStatus.queued, DocumentStatus.processing):
+                        if self._enqueue_job(doc_id, JobType.reindex):
+                            queued_ids.append(doc_id)
+                            messages.append(
+                                f"Verarbeitung erneut angestossen: {relative_name}"
+                            )
+                        else:
+                            skipped_ids.append(doc_id)
+                            messages.append(
+                                f"Bereits in der aktuellen Verarbeitungsqueue: {relative_name}"
+                            )
+                        continue
+
+                stored = self._fs.copy_to_managed_storage(
+                    relative_name, file_bytes=content
+                )
+                doc_id = stored["docId"]
+                self._db.upsert_document(
+                    environment_id=self._active_environment_id(),
+                    doc_id=doc_id,
+                    file_name=stored["fileName"],
+                    file_path=stored["destinationPath"],
+                    file_hash=stored["fileHash"],
+                    file_type=stored["extension"] or "unknown",
+                    status=DocumentStatus.queued,
+                    tags=options.tags,
+                    source=options.source,
+                    corpus_path=self._fs.get_corpus_path(doc_id),
+                    size_bytes=stored["sizeBytes"],
+                )
+                self._enqueue_job(doc_id, JobType.reindex)
+                queued_ids.append(doc_id)
+            except Exception as exc:
+                _logger.exception("add_documents_from_folder_path file=%s", absolute_path)
+                messages.append(f"Fehler bei {relative_name}: {exc}")
+
+        asyncio.get_event_loop().call_soon(
+            lambda: asyncio.ensure_future(self._process_queue())
+        )
+        return (
+            AddDocumentsResult(
+                queued_doc_ids=queued_ids,
+                skipped_doc_ids=skipped_ids,
+                messages=messages,
+            ),
+            file_count,
+            next_offset,
+            done,
+        )
+
     async def remove_document(self, doc_id: str) -> None:
-        doc = self._db.get_document(doc_id)
+        doc = self._db.get_document(doc_id, self._active_environment_id())
         if not doc:
             return
         self._vs.remove_document(self._active_pg().db_table_name, doc_id)
@@ -197,6 +307,21 @@ class IngestService:
     async def remove_documents(self, doc_ids: list[str]) -> None:
         for doc_id in doc_ids:
             await self.remove_document(doc_id)
+
+    async def remove_not_ingested_documents(self) -> int:
+        """
+        Entfernt alle Dokumente des aktiven Environments, die nicht fertig eingelesen sind:
+        status != done oder chunk_count <= 0.
+        """
+        docs = self._db.list_documents(self._active_environment_id())
+        to_remove = [
+            doc.doc_id
+            for doc in docs
+            if not (doc.status == DocumentStatus.done and doc.chunk_count > 0)
+        ]
+        for doc_id in to_remove:
+            await self.remove_document(doc_id)
+        return len(to_remove)
 
     async def reindex_document(self, doc_id: str) -> None:
         self._enqueue_job(doc_id, JobType.reindex)
@@ -208,13 +333,13 @@ class IngestService:
         asyncio.get_event_loop().call_soon(lambda: asyncio.ensure_future(self._process_queue()))
 
     async def get_corpus(self, doc_id: str) -> str:
-        doc = self._db.get_document(doc_id)
+        doc = self._db.get_document(doc_id, self._active_environment_id())
         if not doc:
             raise ValueError("Dokument nicht gefunden.")
         return self._fs.read_text_file(doc.corpus_path)
 
     async def save_corpus(self, doc_id: str, jsonl_content: str) -> None:
-        doc = self._db.get_document(doc_id)
+        doc = self._db.get_document(doc_id, self._active_environment_id())
         if not doc:
             raise ValueError("Dokument nicht gefunden.")
         lines = [line for line in jsonl_content.split("\n") if line.strip()]
@@ -344,7 +469,7 @@ class IngestService:
         return {"postgres": pg, "pythonWorker": pw}
 
     def export_documents_as_csv(self) -> str:
-        docs = self._db.list_documents()
+        docs = self._db.list_documents(self._active_environment_id())
         output = io.StringIO()
         writer = csv.DictWriter(
             output,
@@ -391,6 +516,7 @@ class IngestService:
         job_id = str(uuid.uuid4())
         self._queue.append({"jobId": job_id, "docId": doc_id, "type": job_type})
         self._db.upsert_job(
+            environment_id=self._active_environment_id(),
             job_id=job_id,
             doc_id=doc_id,
             job_type=job_type,
@@ -415,12 +541,14 @@ class IngestService:
         doc_id = job["docId"]
         job_id = job["jobId"]
         job_type = job["type"]
+        env_id = self._active_environment_id()
 
-        doc = self._db.get_document(doc_id)
+        doc = self._db.get_document(doc_id, env_id)
         if not doc:
             return
 
         self._db.upsert_job(
+            environment_id=env_id,
             job_id=job_id, doc_id=doc_id, job_type=job_type,
             status=JobStatus.running, progress=0.05, message="Verarbeitung gestartet.",
         )
@@ -531,6 +659,7 @@ class IngestService:
 
             self._db.set_document_index_result(doc_id, len(vectors))
             self._db.upsert_job(
+                environment_id=env_id,
                 job_id=job_id, doc_id=doc_id, job_type=job_type,
                 status=JobStatus.done, progress=1, message="Indexierung erfolgreich abgeschlossen.",
             )
@@ -543,6 +672,7 @@ class IngestService:
             msg = str(exc)
             self._db.set_document_status(doc_id, DocumentStatus.error, msg)
             self._db.upsert_job(
+                environment_id=env_id,
                 job_id=job_id, doc_id=doc_id, job_type=job_type,
                 status=JobStatus.error, progress=1, message=msg,
             )

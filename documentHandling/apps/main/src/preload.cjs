@@ -13,6 +13,7 @@ contextBridge.exposeInMainWorld("ragApi", {
   reindexDocuments: (docIds) => ipcRenderer.invoke("documents:reindex-bulk", docIds),
   removeDocument: (docId) => ipcRenderer.invoke("documents:remove", docId),
   removeDocuments: (docIds) => ipcRenderer.invoke("documents:remove-bulk", docIds),
+  removeNotIngestedDocuments: () => ipcRenderer.invoke("documents:remove-not-ingested"),
   getCorpus: (docId) => ipcRenderer.invoke("corpus:get", docId),
   saveCorpus: (docId, jsonlContent) => ipcRenderer.invoke("corpus:save", docId, jsonlContent),
   getSettings: () => ipcRenderer.invoke("settings:get"),

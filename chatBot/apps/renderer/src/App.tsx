@@ -8,6 +8,21 @@ interface DisplayMessage {
   sources?: ContextChunk[];
 }
 
+interface ChatEnvSettings {
+  activePostgresEnvironmentId: string;
+  postgresEnvironments: Array<{
+    id: string;
+    name: string;
+    dbHost: string;
+    dbPort: number;
+    dbName: string;
+    dbUser: string;
+    dbPassword: string;
+    dbSchema: string;
+    dbTableName: string;
+  }>;
+}
+
 const DEFAULT_SETTINGS: ChatSettings = {
   llmApiKey: "ollama",
   llmBaseUrl: "http://localhost:11434/v1",
@@ -28,6 +43,7 @@ export default function App() {
   const [settings, setSettings] = useState<ChatSettings>(DEFAULT_SETTINGS);
   const [notification, setNotification] = useState<{ type: "error" | "success"; text: string } | null>(null);
   const [isConnected, setIsConnected] = useState(false);
+  const [appSettings, setAppSettings] = useState<ChatEnvSettings | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -44,9 +60,33 @@ export default function App() {
     try {
       const loaded = await window.chatApi.getChatSettings();
       setSettings(loaded);
+      const app = await window.chatApi.getSettings();
+      setAppSettings(app);
     } catch {
       // API might not be reachable yet
     }
+  }
+
+  async function changeEnvironment(nextId: string): Promise<void> {
+    if (!appSettings) return;
+    try {
+      const saved = await window.chatApi.saveSettings({
+        ...appSettings,
+        activePostgresEnvironmentId: nextId
+      });
+      setAppSettings(saved);
+      showNotification("success", `Environment aktiv: ${nextId}`);
+    } catch (err) {
+      showNotification("error", `${t("notify.error")}: ${err}`);
+    }
+  }
+
+  function sourceToUrl(src: ContextChunk): string | null {
+    const candidate = (src.sourcePath || src.fileName || "").trim();
+    if (!candidate) return null;
+    if (/^https?:\/\//i.test(candidate)) return candidate;
+    if (candidate.startsWith("www.")) return `https://${candidate}`;
+    return null;
   }
 
   async function checkHealth(): Promise<void> {
@@ -138,6 +178,22 @@ export default function App() {
 
         <div className="sidebar-section">
           <h2>{t("sidebar.llmConfig")}</h2>
+
+          {appSettings && appSettings.postgresEnvironments.length > 0 && (
+            <div className="setting-field">
+              <label>Environment</label>
+              <select
+                value={appSettings.activePostgresEnvironmentId}
+                onChange={(e) => void changeEnvironment(e.target.value)}
+              >
+                {appSettings.postgresEnvironments.map((env: ChatEnvSettings["postgresEnvironments"][number]) => (
+                  <option key={env.id} value={env.id}>
+                    {env.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           <div className="setting-field">
             <label>{t("sidebar.apiKey")}</label>
@@ -270,6 +326,15 @@ export default function App() {
                         <div key={sIdx} className="source-item">
                           {src.fileName} | Chunk {src.chunkIndex} |{" "}
                           {(src.similarity * 100).toFixed(1)}% {t("chat.relevance")}
+                          {sourceToUrl(src) && (
+                            <>
+                              {" "}
+                              |{" "}
+                              <a href={sourceToUrl(src) || "#"} target="_blank" rel="noreferrer">
+                                Website
+                              </a>
+                            </>
+                          )}
                         </div>
                       ))}
                     </details>

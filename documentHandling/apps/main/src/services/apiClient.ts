@@ -17,6 +17,7 @@ const UPLOAD_BATCH_TIMEOUT_MS = 900_000;
 const UPLOAD_BATCH_MAX_ATTEMPTS = 10;
 const UPLOAD_RETRY_BASE_MS = 3_000;
 const UPLOAD_RETRY_MAX_MS = 120_000;
+const FOLDER_SCAN_BATCH_SIZE = 300;
 
 export class ApiClient {
   private baseUrl: string;
@@ -155,6 +156,61 @@ export class ApiClient {
     return { queuedDocIds: allQueued, skippedDocIds: allSkipped, messages: allMessages };
   }
 
+  public async uploadFolderPath(
+    folderPath: string,
+    options: UploadOptions
+  ): Promise<{ queuedDocIds: string[]; skippedDocIds: string[]; messages: string[]; fileCount: number }> {
+    let offset = 0;
+    let done = false;
+    let fileCount = 0;
+    const allQueued: string[] = [];
+    const allSkipped: string[] = [];
+    const allMessages: string[] = [];
+
+    while (!done) {
+      const response = await this.fetchWithTimeout(
+        `${this.baseUrl}/api/documents/upload-folder-path`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            folderPath,
+            tags: options.tags ?? [],
+            source: options.source || "lokal",
+            offset,
+            batchSize: FOLDER_SCAN_BATCH_SIZE
+          })
+        },
+        UPLOAD_BATCH_TIMEOUT_MS,
+        "upload"
+      );
+      if (!response.ok) {
+        const body = await response.text();
+        throw new Error(`Ordner-Upload fehlgeschlagen: ${response.status} ${body}`);
+      }
+      const data = (await response.json()) as {
+        queuedDocIds?: string[];
+        skippedDocIds?: string[];
+        messages?: string[];
+        fileCount?: number;
+        nextOffset?: number;
+        done?: boolean;
+      };
+      allQueued.push(...(data.queuedDocIds ?? []));
+      allSkipped.push(...(data.skippedDocIds ?? []));
+      if (data.messages?.length) {
+        allMessages.push(...data.messages);
+      }
+      fileCount = Number.isFinite(data.fileCount) ? (data.fileCount as number) : fileCount;
+      offset = Number.isFinite(data.nextOffset) ? (data.nextOffset as number) : offset + FOLDER_SCAN_BATCH_SIZE;
+      done = Boolean(data.done) || offset >= fileCount;
+      if (!done) {
+        console.log(`[apiClient] folder-import fortsetzen: ${offset}/${fileCount}`);
+      }
+    }
+    return { queuedDocIds: allQueued, skippedDocIds: allSkipped, messages: allMessages, fileCount };
+  }
+
   private async uploadFilesSingleRequestWithRetry(
     filePaths: string[],
     options: UploadOptions,
@@ -244,6 +300,11 @@ export class ApiClient {
   public async removeDocuments(docIds: string[]): Promise<{ ok: true }> {
     await this.post("/api/documents/remove-bulk", { docIds });
     return { ok: true };
+  }
+
+  public async removeNotIngestedDocuments(): Promise<{ ok: true; removedCount: number }> {
+    const res = await this.post<{ ok: true; removedCount?: number }>("/api/documents/remove-not-ingested");
+    return { ok: true, removedCount: res.removedCount ?? 0 };
   }
 
   public async reindexDocument(docId: string): Promise<{ ok: true }> {

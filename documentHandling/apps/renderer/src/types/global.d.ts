@@ -24,6 +24,7 @@ declare global {
       reindexDocuments: (docIds: string[]) => Promise<{ ok: true }>;
       removeDocument: (docId: string) => Promise<{ ok: true }>;
       removeDocuments: (docIds: string[]) => Promise<{ ok: true }>;
+      removeNotIngestedDocuments: () => Promise<{ ok: true; removedCount: number }>;
       getCorpus: (docId: string) => Promise<string>;
       saveCorpus: (docId: string, jsonlContent: string) => Promise<{ ok: true }>;
       getSettings: () => Promise<AppSettings>;

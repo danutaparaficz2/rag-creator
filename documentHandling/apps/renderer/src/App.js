@@ -430,10 +430,19 @@ export default function App() {
         setSelectedDocumentIds([]);
         await reloadDocuments();
     }
+    async function removeNotIngestedDocuments() {
+        const res = await window.ragApi.removeNotIngestedDocuments();
+        setSelectedDocumentIds([]);
+        await reloadDocuments();
+        appendFolderLog(`cleanup: ${res.removedCount} nicht eingelesene Dokumente entfernt`);
+        setHealthMessage(`Nicht eingelesene Dokumente entfernt: ${res.removedCount}`);
+    }
     async function saveSettings() {
         const persisted = await window.ragApi.saveSettings(settings);
         setSettings(persisted);
         setIsConnectionReady(false);
+        setSelectedDocumentIds([]);
+        await reloadDocuments();
         setHealthMessage(t("settings.saved"));
     }
     async function runConnectionTest() {
@@ -445,6 +454,10 @@ export default function App() {
         try {
             const result = await window.ragApi.testDatabaseConnection(settings);
             setIsConnectionReady(result.status === "ok");
+            if (result.status === "ok") {
+                setSelectedDocumentIds([]);
+                await reloadDocuments();
+            }
             setHealthMessage(result.message);
             setConnectionTestLastResponse(JSON.stringify(result, null, 2));
         }
@@ -469,7 +482,7 @@ export default function App() {
         anchorElement.click();
         URL.revokeObjectURL(url);
     }
-    return (_jsxs("div", { className: "app-shell", children: [_jsxs("header", { className: "top-bar", children: [_jsxs("div", { className: "top-bar-left", children: [_jsx("h1", { children: t("app.title") }), _jsxs("div", { className: "tab-row", children: [_jsx("button", { type: "button", className: `tab-button ${activeTab === "documents" ? "active" : ""}`, onClick: () => setActiveTab("documents"), children: t("tabs.documents") }), _jsx("button", { type: "button", className: `tab-button ${activeTab === "settings" ? "active" : ""}`, onClick: () => setActiveTab("settings"), children: t("tabs.settings") })] })] }), _jsxs("div", { className: "button-row", children: [activeTab === "documents" && (_jsxs(_Fragment, { children: [_jsx("button", { type: "button", onClick: () => void uploadWithPicker(), children: t("header.addDocuments") }), _jsx("button", { onClick: () => void reindexSelectedDocuments(), disabled: selectedDocumentIds.length === 0, children: t("header.reindexSelected") }), _jsx("button", { onClick: () => void removeSelectedDocuments(), disabled: selectedDocumentIds.length === 0, children: t("header.removeSelected") }), _jsx("button", { onClick: () => void exportCsv(), children: t("header.exportCsv") })] })), _jsxs("div", { className: "lang-switcher", children: [_jsxs("span", { children: [t("settings.language"), ":"] }), _jsx("button", { className: `lang-toggle ${locale === "de" ? "active" : ""}`, onClick: () => setLocale("de"), type: "button", children: "DE" }), _jsx("button", { className: `lang-toggle ${locale === "en" ? "active" : ""}`, onClick: () => setLocale("en"), type: "button", children: "EN" })] })] })] }), activeTab === "documents" && (_jsxs(_Fragment, { children: [_jsx("section", { className: `drop-zone ${isDropActive ? "drop-zone-active" : ""}`, onDragOver: (event) => {
+    return (_jsxs("div", { className: "app-shell", children: [_jsxs("header", { className: "top-bar", children: [_jsxs("div", { className: "top-bar-left", children: [_jsx("h1", { children: t("app.title") }), _jsxs("div", { className: "tab-row", children: [_jsx("button", { type: "button", className: `tab-button ${activeTab === "documents" ? "active" : ""}`, onClick: () => setActiveTab("documents"), children: t("tabs.documents") }), _jsx("button", { type: "button", className: `tab-button ${activeTab === "settings" ? "active" : ""}`, onClick: () => setActiveTab("settings"), children: t("tabs.settings") })] })] }), _jsxs("div", { className: "button-row", children: [activeTab === "documents" && (_jsxs(_Fragment, { children: [_jsx("button", { type: "button", onClick: () => void uploadWithPicker(), children: t("header.addDocuments") }), _jsx("button", { onClick: () => void reindexSelectedDocuments(), disabled: selectedDocumentIds.length === 0, children: t("header.reindexSelected") }), _jsx("button", { onClick: () => void removeSelectedDocuments(), disabled: selectedDocumentIds.length === 0, children: t("header.removeSelected") }), _jsx("button", { onClick: () => void removeNotIngestedDocuments(), children: "Alle nicht eingelesenen entfernen" }), _jsx("button", { onClick: () => void exportCsv(), children: t("header.exportCsv") })] })), _jsxs("div", { className: "lang-switcher", children: [_jsxs("span", { children: [t("settings.language"), ":"] }), _jsx("button", { className: `lang-toggle ${locale === "de" ? "active" : ""}`, onClick: () => setLocale("de"), type: "button", children: "DE" }), _jsx("button", { className: `lang-toggle ${locale === "en" ? "active" : ""}`, onClick: () => setLocale("en"), type: "button", children: "EN" })] })] })] }), activeTab === "documents" && (_jsxs(_Fragment, { children: [_jsx("section", { className: `drop-zone ${isDropActive ? "drop-zone-active" : ""}`, onDragOver: (event) => {
                             if (!isConnectionReady)
                                 return;
                             event.preventDefault();

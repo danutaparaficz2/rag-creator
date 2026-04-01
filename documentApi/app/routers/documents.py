@@ -7,7 +7,7 @@ from fastapi.responses import PlainTextResponse
 
 from ..dependencies import get_ingest_service
 from ..ingest_service import IngestService
-from ..models import UploadOptions
+from ..models import UploadFolderRequest, UploadOptions
 
 _logger = logging.getLogger(__name__)
 
@@ -48,6 +48,36 @@ async def upload_documents(
     return result.model_dump(by_alias=True)
 
 
+@router.post("/upload-folder-path")
+async def upload_folder_path(
+    body: UploadFolderRequest,
+    svc: IngestService = Depends(get_ingest_service),
+):
+    options = UploadOptions(tags=body.tags, source=body.source or "lokal")
+    try:
+        result, file_count, next_offset, done = await svc.add_documents_from_folder_path(
+            body.folder_path,
+            options,
+            offset=body.offset,
+            batch_size=body.batch_size,
+        )
+    except RuntimeError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        _logger.exception("upload_folder_path")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Ordner-Upload fehlgeschlagen: {exc}",
+        ) from exc
+    payload = result.model_dump(by_alias=True)
+    payload["fileCount"] = file_count
+    payload["nextOffset"] = next_offset
+    payload["done"] = done
+    return payload
+
+
 @router.delete("/{doc_id}")
 async def remove_document(
     doc_id: str,
@@ -65,6 +95,14 @@ async def remove_documents_bulk(
     doc_ids = body.get("docIds", [])
     await svc.remove_documents(doc_ids)
     return {"ok": True}
+
+
+@router.post("/remove-not-ingested")
+async def remove_not_ingested_documents(
+    svc: IngestService = Depends(get_ingest_service),
+):
+    removed = await svc.remove_not_ingested_documents()
+    return {"ok": True, "removedCount": removed}
 
 
 @router.post("/{doc_id}/reindex")

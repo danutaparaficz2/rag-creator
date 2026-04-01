@@ -63,6 +63,7 @@ class IndexDatabase:
             """
             CREATE TABLE IF NOT EXISTS documents (
                 docId TEXT PRIMARY KEY,
+                environmentId TEXT NOT NULL DEFAULT 'default',
                 fileName TEXT NOT NULL,
                 filePath TEXT NOT NULL,
                 fileHash TEXT NOT NULL,
@@ -82,6 +83,7 @@ class IndexDatabase:
             CREATE TABLE IF NOT EXISTS jobs (
                 jobId TEXT PRIMARY KEY,
                 docId TEXT NOT NULL,
+                environmentId TEXT NOT NULL DEFAULT 'default',
                 type TEXT NOT NULL,
                 status TEXT NOT NULL,
                 progress REAL NOT NULL,
@@ -92,10 +94,26 @@ class IndexDatabase:
             );
             """
         )
+        self._ensure_column("documents", "environmentId", "TEXT NOT NULL DEFAULT 'default'")
+        self._ensure_column("jobs", "environmentId", "TEXT NOT NULL DEFAULT 'default'")
+        self._conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_documents_env_updated ON documents(environmentId, updatedAt DESC)"
+        )
+        self._conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_jobs_env_updated ON jobs(environmentId, updatedAt DESC)"
+        )
+        self._conn.commit()
+
+    def _ensure_column(self, table: str, column: str, ddl: str) -> None:
+        cols = self._conn.execute(f"PRAGMA table_info({table})").fetchall()
+        if any(str(c["name"]) == column for c in cols):
+            return
+        self._conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {ddl}")
 
     def upsert_document(
         self,
         *,
+        environment_id: str,
         doc_id: str,
         file_name: str,
         file_path: str,
@@ -111,11 +129,12 @@ class IndexDatabase:
         self._conn.execute(
             """
             INSERT INTO documents (
-                docId, fileName, filePath, fileHash, fileType, createdAt, updatedAt,
+                docId, environmentId, fileName, filePath, fileHash, fileType, createdAt, updatedAt,
                 status, tags, source, corpusPath, sizeBytes
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(docId) DO UPDATE SET
+                environmentId=excluded.environmentId,
                 fileName=excluded.fileName,
                 filePath=excluded.filePath,
                 fileHash=excluded.fileHash,
@@ -128,7 +147,7 @@ class IndexDatabase:
                 sizeBytes=excluded.sizeBytes
             """,
             (
-                doc_id, file_name, file_path, file_hash, file_type,
+                doc_id, environment_id, file_name, file_path, file_hash, file_type,
                 now, now, status.value, json.dumps(tags), source,
                 corpus_path, size_bytes,
             ),
@@ -157,15 +176,22 @@ class IndexDatabase:
         )
         self._conn.commit()
 
-    def list_documents(self) -> list[DocumentRecord]:
+    def list_documents(self, environment_id: str) -> list[DocumentRecord]:
         rows = self._conn.execute(
-            "SELECT * FROM documents ORDER BY updatedAt DESC"
+            "SELECT * FROM documents WHERE environmentId = ? ORDER BY updatedAt DESC",
+            (environment_id,),
         ).fetchall()
         return [_row_to_document(row) for row in rows]
 
-    def get_document(self, doc_id: str) -> DocumentRecord | None:
+    def get_document(self, doc_id: str, environment_id: str | None = None) -> DocumentRecord | None:
+        if environment_id is None:
+            row = self._conn.execute(
+                "SELECT * FROM documents WHERE docId = ?", (doc_id,)
+            ).fetchone()
+            return _row_to_document(row) if row else None
         row = self._conn.execute(
-            "SELECT * FROM documents WHERE docId = ?", (doc_id,)
+            "SELECT * FROM documents WHERE docId = ? AND environmentId = ?",
+            (doc_id, environment_id),
         ).fetchone()
         return _row_to_document(row) if row else None
 
@@ -176,6 +202,7 @@ class IndexDatabase:
     def upsert_job(
         self,
         *,
+        environment_id: str,
         job_id: str,
         doc_id: str,
         job_type: JobType,
@@ -186,32 +213,34 @@ class IndexDatabase:
         now = int(time.time() * 1000)
         self._conn.execute(
             """
-            INSERT INTO jobs (jobId, docId, type, status, progress, createdAt, updatedAt, message)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO jobs (jobId, docId, environmentId, type, status, progress, createdAt, updatedAt, message)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(jobId) DO UPDATE SET
+                environmentId=excluded.environmentId,
                 status=excluded.status,
                 progress=excluded.progress,
                 updatedAt=excluded.updatedAt,
                 message=excluded.message
             """,
-            (job_id, doc_id, job_type.value, status.value, progress, now, now, message),
+            (job_id, doc_id, environment_id, job_type.value, status.value, progress, now, now, message),
         )
         self._conn.commit()
 
-    def list_jobs(self) -> list[JobRecord]:
+    def list_jobs(self, environment_id: str) -> list[JobRecord]:
         rows = self._conn.execute(
-            "SELECT * FROM jobs ORDER BY updatedAt DESC LIMIT 200"
+            "SELECT * FROM jobs WHERE environmentId = ? ORDER BY updatedAt DESC LIMIT 200",
+            (environment_id,),
         ).fetchall()
         return [_row_to_job(row) for row in rows]
 
-    def list_doc_ids_by_status(self, status: str) -> list[str]:
+    def list_doc_ids_by_status(self, status: str, environment_id: str) -> list[str]:
         rows = self._conn.execute(
-            "SELECT docId FROM documents WHERE status = ? ORDER BY updatedAt ASC",
-            (status,),
+            "SELECT docId FROM documents WHERE status = ? AND environmentId = ? ORDER BY updatedAt ASC",
+            (status, environment_id),
         ).fetchall()
         return [str(r["docId"]) for r in rows]
 
-    def recover_after_api_restart(self) -> tuple[int, int]:
+    def recover_after_api_restart(self, environment_id: str) -> tuple[int, int]:
         """
         Nach Prozess-Neustart: es laeuft kein Worker mehr.
         - processing -> queued (wird wieder eingeplant)
@@ -222,9 +251,9 @@ class IndexDatabase:
             """
             UPDATE documents
             SET status = 'queued', errorMessage = NULL, updatedAt = ?
-            WHERE status = 'processing'
+            WHERE status = 'processing' AND environmentId = ?
             """,
-            (now,),
+            (now, environment_id),
         )
         cur_jobs = self._conn.execute(
             """
@@ -233,9 +262,9 @@ class IndexDatabase:
                 message = ?,
                 progress = 1.0,
                 updatedAt = ?
-            WHERE status IN ('queued', 'running')
+            WHERE status IN ('queued', 'running') AND environmentId = ?
             """,
-            ("Unterbrochen (API-Neustart — wird neu eingeplant).", now),
+            ("Unterbrochen (API-Neustart — wird neu eingeplant).", now, environment_id),
         )
         self._conn.commit()
         return (int(cur_docs.rowcount or 0), int(cur_jobs.rowcount or 0))
