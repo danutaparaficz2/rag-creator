@@ -5,6 +5,7 @@ import csv
 import logging
 import io
 import json
+import re
 import time
 import uuid
 from collections.abc import Callable
@@ -32,6 +33,30 @@ from .vector_service import PostgresVectorService
 from .worker import embed_texts, parse_document
 
 _logger = logging.getLogger(__name__)
+
+_SOURCE_LABEL_URL_RE = re.compile(
+    r"(?:quelle|source|url)\s*:\s*(https?://[^\s<>'\"`]+|www\.[^\s<>'\"`]+)",
+    re.IGNORECASE,
+)
+
+
+def _normalize_source_url(raw: str | None) -> str | None:
+    if raw is None:
+        return None
+    s = str(raw).strip().strip('"').strip("'")
+    if not s:
+        return None
+    # Falls alte Werte wie .../index.md gespeichert wurden, fürs Öffnen strippen.
+    s = re.sub(r"/index\.(?:md|html?|htm)$", "/", s, flags=re.IGNORECASE)
+    return s
+
+
+def _extract_source_url_from_chunk_text(text: str) -> str | None:
+    t = text or ""
+    m = _SOURCE_LABEL_URL_RE.search(t)
+    if not m:
+        return None
+    return _normalize_source_url(m.group(1))
 
 
 class IngestService:
@@ -648,7 +673,13 @@ class IngestService:
                     "sourceModifiedUnixSeconds": int(doc.updated_at / 1000),
                     "text": line.get("text", ""),
                     "tags": doc.tags,
-                    "source": doc.source,
+                    # URL pro Chunk bevorzugen: zuerst aus Chunk-Text ("Quelle: ..."),
+                    # dann canonicalUrl (falls verfügbar), sonst doc.source (Fallback).
+                    "source": (
+                        _extract_source_url_from_chunk_text(str(line.get("text", "")))
+                        or _normalize_source_url((line.get("metadata") or {}).get("canonicalUrl"))
+                        or _normalize_source_url(doc.source)
+                    ),
                     "fileName": doc.file_name,
                 }
                 for line, _ in embedding_inputs

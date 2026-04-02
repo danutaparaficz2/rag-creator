@@ -36,6 +36,11 @@ _A_HREF_RE = re.compile(
 )
 _MD_LINK_RE = re.compile(r"\[[^\]]*\]\((https?://[^)\s]+)\)")
 _BARE_URL_RE = re.compile(r"https?://[^\s<>\"'`\)\]]+")
+# Erkennt "Quelle: https://..." auch wenn davor noch Text steht (z. B. "Nordic Optical Telescope Quelle: ...")
+_LABEL_URL_RE = re.compile(
+    r"(?:quelle|source|url)\s*:\s*(https?://[^\s<>\"'`]+)",
+    re.IGNORECASE,
+)
 
 
 def _normalize_http_url(candidate: str) -> str | None:
@@ -44,6 +49,9 @@ def _normalize_http_url(candidate: str) -> str | None:
         return None
     if s.startswith("ahttps://") or s.startswith("ahttp://"):
         s = s[1:]
+    # Bei Web-Docs oft in Kopfzeilen enthalten, aber für's Öffnen ans Root-Verzeichnis gedacht.
+    # Beispiel: https://www.not.iac.es/index.md -> https://www.not.iac.es/
+    s = re.sub(r"/index\.(?:md|html?|htm)$", "/", s, flags=re.IGNORECASE)
     if s.startswith("https://") or s.startswith("http://"):
         return s.rstrip(".,;)")
     return None
@@ -58,6 +66,14 @@ def extract_header_canonical_url(raw_text: str, extension: str) -> str | None:
         u = _normalize_http_url(m.group(1))
         if u:
             return u
+
+    # "Quelle:"/"/url:" kommt teils mid-line vor (Text davor), daher Suche im gesamten Head-String.
+    m = _LABEL_URL_RE.search(head)
+    if m:
+        u = _normalize_http_url(m.group(1))
+        if u:
+            return u
+
     for line in head.splitlines()[:60]:
         ln = line.strip()
         if re.match(r"^(?:source|url)\s*:\s*", ln, re.I):

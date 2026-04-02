@@ -88,6 +88,8 @@ export default function App() {
     if (/^ahttps?:\/\//i.test(u)) {
       u = u.slice(1);
     }
+    // Alte Werte aus DB: .../index.md -> Root-Seite fürs Öffnen
+    u = u.replace(/\/index\.(?:md|html?|htm)$/i, "/");
     if (/^https?:\/\//i.test(u)) return u;
     if (u.startsWith("www.")) return `https://${u}`;
     return null;
