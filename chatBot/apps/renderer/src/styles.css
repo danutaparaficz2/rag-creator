@@ -330,6 +330,23 @@ body {
   font-size: 11px;
 }
 
+.source-external-link {
+  display: inline;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  font-family: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.source-external-link:hover {
+  color: var(--accent-hover);
+}
+
 .empty-state {
   flex: 1;
   display: flex;

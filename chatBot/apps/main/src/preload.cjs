@@ -6,5 +6,6 @@ contextBridge.exposeInMainWorld("chatApi", {
   saveChatSettings: (settings) => ipcRenderer.invoke("chat:settings:save", settings),
   healthCheck: () => ipcRenderer.invoke("chat:health"),
   getSettings: () => ipcRenderer.invoke("settings:get"),
-  saveSettings: (settings) => ipcRenderer.invoke("settings:save", settings)
+  saveSettings: (settings) => ipcRenderer.invoke("settings:save", settings),
+  openExternal: (url) => ipcRenderer.invoke("shell:open-external", url)
 });

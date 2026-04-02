@@ -14,6 +14,12 @@ const translations = {
     "header.clearFolderPick": "Auswahl aufheben",
     "header.folderIngestRunning": "Einlesen…",
     "header.reindexSelected": "Ausgewählte neu indexieren",
+    "header.reindexAll": "Alle neu indexieren",
+    "header.reindexAllConfirm":
+      "Alle {0} Dokumente neu indexieren? Das kann je nach Anzahl und Größe lange dauern und die Datenbank belasten.",
+    "header.reindexAllNone": "Keine Dokumente in der Liste — nichts zu erneuern.",
+    "header.reindexAllStarted": "Neu-Indexierung für {0} Dokumente wurde angestoßen (Fortschritt unter Jobs).",
+    "header.reindexAllRunning": "Alle neu indexieren …",
     "header.removeSelected": "Ausgewählte entfernen",
     "header.exportCsv": "CSV exportieren",
     "drop.ready":
@@ -106,6 +112,12 @@ const translations = {
     "header.clearFolderPick": "Clear selection",
     "header.folderIngestRunning": "Ingesting…",
     "header.reindexSelected": "Reindex Selected",
+    "header.reindexAll": "Reindex all",
+    "header.reindexAllConfirm":
+      "Reindex all {0} documents? This may take a long time and load the database depending on count and size.",
+    "header.reindexAllNone": "No documents in the list — nothing to refresh.",
+    "header.reindexAllStarted": "Reindex queued for {0} documents (see Jobs for progress).",
+    "header.reindexAllRunning": "Reindexing all …",
     "header.removeSelected": "Remove Selected",
     "header.exportCsv": "Export CSV",
     "drop.ready":

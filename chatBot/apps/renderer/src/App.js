@@ -55,15 +55,63 @@ export default function App() {
             showNotification("error", `${t("notify.error")}: ${err}`);
         }
     }
-    function sourceToUrl(src) {
-        const candidate = (src.sourcePath || src.fileName || "").trim();
-        if (!candidate)
+    function normalizeHttpUrl(raw) {
+        let u = raw.trim();
+        if (!u)
             return null;
-        if (/^https?:\/\//i.test(candidate))
-            return candidate;
-        if (candidate.startsWith("www."))
-            return `https://${candidate}`;
+        // Kaputte Extraktion: "ahttps://..." (z. B. Rest von <a href=...)
+        if (/^ahttps?:\/\//i.test(u)) {
+            u = u.slice(1);
+        }
+        if (/^https?:\/\//i.test(u))
+            return u;
+        if (u.startsWith("www."))
+            return `https://${u}`;
         return null;
+    }
+    /** URLs aus MD/HTML: <a href="...">, href="...", [text](url), source: ... */
+    function extractUrlFromChunkText(text) {
+        const t = text || "";
+        const patterns = [
+            /<a\s[^>]*\bhref\s*=\s*["']([^"']+)["']/gi,
+            /\bhref\s*=\s*["'](https?:\/\/[^"']+)["']/gi,
+            /\[[^\]]*]\((https?:\/\/[^)\s]+)\)/g,
+            /(?:^|\n)\s*(?:source|url)\s*:\s*(?:<a[^>]*\bhref\s*=\s*["'])?(https?:\/\/[^\s"'<>\]]+)/i,
+            /(?:^|\n)\s*(?:source|url)\s*:\s*(https?:\/\/[^\s)\]]+)/i,
+            /(?:^|\n)\s*(?:source|url)\s*:\s*(www\.[^\s)\]"'<>\]]+)/i
+        ];
+        for (const re of patterns) {
+            re.lastIndex = 0;
+            let m;
+            while ((m = re.exec(t)) !== null) {
+                const g = m[1] ?? m[0];
+                const n = normalizeHttpUrl(g);
+                if (n)
+                    return n;
+            }
+        }
+        const bare = t.match(/https?:\/\/[^\s)\]"'<>\]]+/i);
+        if (bare?.[0]) {
+            const n = normalizeHttpUrl(bare[0]);
+            if (n)
+                return n;
+        }
+        return null;
+    }
+    function sourceToUrl(src) {
+        const fromFields = [src.sourcePath || "", src.source || "", src.fileName || ""];
+        for (const raw of fromFields) {
+            const candidate = raw.trim();
+            if (!candidate)
+                continue;
+            const fromHtml = extractUrlFromChunkText(candidate);
+            if (fromHtml)
+                return fromHtml;
+            const n = normalizeHttpUrl(candidate);
+            if (n)
+                return n;
+        }
+        return extractUrlFromChunkText(src.text || "");
     }
     async function checkHealth() {
         try {
@@ -138,5 +186,10 @@ export default function App() {
     function clearChat() {
         setMessages([]);
     }
-    return (_jsxs("div", { className: "app-layout", children: [_jsxs("aside", { className: "sidebar", children: [_jsxs("div", { className: "sidebar-header", children: [_jsx("h1", { children: t("app.title") }), _jsx("p", { children: t("app.subtitle") })] }), _jsxs("div", { className: "sidebar-section", children: [_jsx("h2", { children: t("sidebar.llmConfig") }), appSettings && appSettings.postgresEnvironments.length > 0 && (_jsxs("div", { className: "setting-field", children: [_jsx("label", { children: "Environment" }), _jsx("select", { value: appSettings.activePostgresEnvironmentId, onChange: (e) => void changeEnvironment(e.target.value), children: appSettings.postgresEnvironments.map((env) => (_jsx("option", { value: env.id, children: env.name }, env.id))) })] })), _jsxs("div", { className: "setting-field", children: [_jsx("label", { children: t("sidebar.apiKey") }), _jsx("input", { type: "password", value: settings.llmApiKey, onChange: (e) => setSettings((s) => ({ ...s, llmApiKey: e.target.value })), placeholder: "sk-..." })] }), _jsxs("div", { className: "setting-field", children: [_jsx("label", { children: t("sidebar.baseUrl") }), _jsx("input", { value: settings.llmBaseUrl, onChange: (e) => setSettings((s) => ({ ...s, llmBaseUrl: e.target.value })) })] }), _jsxs("div", { className: "setting-field", children: [_jsx("label", { children: t("sidebar.model") }), _jsx("input", { value: settings.llmModel, onChange: (e) => setSettings((s) => ({ ...s, llmModel: e.target.value })) })] }), _jsxs("div", { className: "setting-field", children: [_jsxs("label", { children: [t("sidebar.temperature"), " (", settings.temperature, ")"] }), _jsx("input", { type: "number", step: "0.1", min: "0", max: "2", value: settings.temperature, onChange: (e) => setSettings((s) => ({ ...s, temperature: parseFloat(e.target.value) || 0 })) })] }), _jsxs("div", { className: "setting-field", children: [_jsx("label", { children: t("sidebar.maxTokens") }), _jsx("input", { type: "number", value: settings.maxTokens, onChange: (e) => setSettings((s) => ({ ...s, maxTokens: parseInt(e.target.value) || 2048 })) })] }), _jsxs("div", { className: "setting-field", children: [_jsx("label", { children: t("sidebar.topK") }), _jsx("input", { type: "number", min: "1", max: "20", value: settings.topK, onChange: (e) => setSettings((s) => ({ ...s, topK: parseInt(e.target.value) || 5 })) })] }), _jsxs("div", { className: "setting-field", children: [_jsx("label", { children: t("sidebar.systemPrompt") }), _jsx("textarea", { value: settings.systemPrompt, onChange: (e) => setSettings((s) => ({ ...s, systemPrompt: e.target.value })), rows: 3 })] }), _jsxs("div", { className: "setting-field", children: [_jsx("label", { children: t("sidebar.language") }), _jsxs("div", { className: "lang-switcher", children: [_jsx("button", { className: `lang-toggle ${locale === "de" ? "active" : ""}`, onClick: () => setLocale("de"), type: "button", children: "DE" }), _jsx("button", { className: `lang-toggle ${locale === "en" ? "active" : ""}`, onClick: () => setLocale("en"), type: "button", children: "EN" })] })] })] }), _jsxs("div", { className: "sidebar-actions", children: [_jsx("button", { className: "btn btn-primary", onClick: () => void saveSettings(), children: t("sidebar.saveSettings") }), _jsx("button", { className: "btn btn-danger", onClick: clearChat, children: t("sidebar.clearChat") })] }), _jsxs("div", { className: "status-indicator", children: [_jsx("span", { className: `status-dot ${isConnected ? "connected" : ""}` }), isConnected ? t("status.connected") : t("status.disconnected")] })] }), _jsxs("main", { className: "chat-area", children: [notification && (_jsx("div", { className: `notification ${notification.type}`, children: notification.text })), _jsxs("div", { className: "chat-messages", children: [messages.length === 0 && !isLoading && (_jsxs("div", { className: "empty-state", children: [_jsx("div", { className: "icon", children: "\uD83D\uDCAC" }), _jsx("p", { children: t("chat.emptyState") })] })), messages.map((msg, idx) => (_jsxs("div", { className: `message ${msg.role}`, children: [_jsx("div", { className: "message-avatar", children: msg.role === "user" ? t("chat.you") : t("chat.ai") }), _jsxs("div", { className: "message-content", children: [msg.content, msg.sources && msg.sources.length > 0 && (_jsx("div", { className: "message-sources", children: _jsxs("details", { children: [_jsxs("summary", { children: [msg.sources.length, " ", t("chat.sourcesUsed")] }), msg.sources.map((src, sIdx) => (_jsxs("div", { className: "source-item", children: [src.fileName, " | Chunk ", src.chunkIndex, " |", " ", (src.similarity * 100).toFixed(1), "% ", t("chat.relevance"), sourceToUrl(src) && (_jsxs(_Fragment, { children: [" ", "|", " ", _jsx("a", { href: sourceToUrl(src) || "#", target: "_blank", rel: "noreferrer", children: "Website" })] }))] }, sIdx)))] }) }))] })] }, idx))), isLoading && (_jsxs("div", { className: "message assistant", children: [_jsx("div", { className: "message-avatar", children: t("chat.ai") }), _jsx("div", { className: "message-content", children: _jsxs("div", { className: "typing-indicator", children: [_jsx("span", {}), _jsx("span", {}), _jsx("span", {})] }) })] })), _jsx("div", { ref: messagesEndRef })] }), _jsx("div", { className: "chat-input-area", children: _jsxs("div", { className: "chat-input-wrapper", children: [_jsx("textarea", { ref: textareaRef, value: input, onChange: handleTextareaInput, onKeyDown: handleKeyDown, placeholder: t("chat.placeholder"), rows: 1, disabled: isLoading }), _jsx("button", { className: "send-btn", onClick: () => void sendMessage(), disabled: isLoading || !input.trim(), title: "Send", children: "\u27A4" })] }) })] })] }));
+    return (_jsxs("div", { className: "app-layout", children: [_jsxs("aside", { className: "sidebar", children: [_jsxs("div", { className: "sidebar-header", children: [_jsx("h1", { children: t("app.title") }), _jsx("p", { children: t("app.subtitle") })] }), _jsxs("div", { className: "sidebar-section", children: [_jsx("h2", { children: t("sidebar.llmConfig") }), appSettings && appSettings.postgresEnvironments.length > 0 && (_jsxs("div", { className: "setting-field", children: [_jsx("label", { children: "Environment" }), _jsx("select", { value: appSettings.activePostgresEnvironmentId, onChange: (e) => void changeEnvironment(e.target.value), children: appSettings.postgresEnvironments.map((env) => (_jsx("option", { value: env.id, children: env.name }, env.id))) })] })), _jsxs("div", { className: "setting-field", children: [_jsx("label", { children: t("sidebar.apiKey") }), _jsx("input", { type: "password", value: settings.llmApiKey, onChange: (e) => setSettings((s) => ({ ...s, llmApiKey: e.target.value })), placeholder: "sk-..." })] }), _jsxs("div", { className: "setting-field", children: [_jsx("label", { children: t("sidebar.baseUrl") }), _jsx("input", { value: settings.llmBaseUrl, onChange: (e) => setSettings((s) => ({ ...s, llmBaseUrl: e.target.value })) })] }), _jsxs("div", { className: "setting-field", children: [_jsx("label", { children: t("sidebar.model") }), _jsx("input", { value: settings.llmModel, onChange: (e) => setSettings((s) => ({ ...s, llmModel: e.target.value })) })] }), _jsxs("div", { className: "setting-field", children: [_jsxs("label", { children: [t("sidebar.temperature"), " (", settings.temperature, ")"] }), _jsx("input", { type: "number", step: "0.1", min: "0", max: "2", value: settings.temperature, onChange: (e) => setSettings((s) => ({ ...s, temperature: parseFloat(e.target.value) || 0 })) })] }), _jsxs("div", { className: "setting-field", children: [_jsx("label", { children: t("sidebar.maxTokens") }), _jsx("input", { type: "number", value: settings.maxTokens, onChange: (e) => setSettings((s) => ({ ...s, maxTokens: parseInt(e.target.value) || 2048 })) })] }), _jsxs("div", { className: "setting-field", children: [_jsx("label", { children: t("sidebar.topK") }), _jsx("input", { type: "number", min: "1", max: "20", value: settings.topK, onChange: (e) => setSettings((s) => ({ ...s, topK: parseInt(e.target.value) || 5 })) })] }), _jsxs("div", { className: "setting-field", children: [_jsx("label", { children: t("sidebar.systemPrompt") }), _jsx("textarea", { value: settings.systemPrompt, onChange: (e) => setSettings((s) => ({ ...s, systemPrompt: e.target.value })), rows: 3 })] }), _jsxs("div", { className: "setting-field", children: [_jsx("label", { children: t("sidebar.language") }), _jsxs("div", { className: "lang-switcher", children: [_jsx("button", { className: `lang-toggle ${locale === "de" ? "active" : ""}`, onClick: () => setLocale("de"), type: "button", children: "DE" }), _jsx("button", { className: `lang-toggle ${locale === "en" ? "active" : ""}`, onClick: () => setLocale("en"), type: "button", children: "EN" })] })] })] }), _jsxs("div", { className: "sidebar-actions", children: [_jsx("button", { className: "btn btn-primary", onClick: () => void saveSettings(), children: t("sidebar.saveSettings") }), _jsx("button", { className: "btn btn-danger", onClick: clearChat, children: t("sidebar.clearChat") })] }), _jsxs("div", { className: "status-indicator", children: [_jsx("span", { className: `status-dot ${isConnected ? "connected" : ""}` }), isConnected ? t("status.connected") : t("status.disconnected")] })] }), _jsxs("main", { className: "chat-area", children: [notification && (_jsx("div", { className: `notification ${notification.type}`, children: notification.text })), _jsxs("div", { className: "chat-messages", children: [messages.length === 0 && !isLoading && (_jsxs("div", { className: "empty-state", children: [_jsx("div", { className: "icon", children: "\uD83D\uDCAC" }), _jsx("p", { children: t("chat.emptyState") })] })), messages.map((msg, idx) => (_jsxs("div", { className: `message ${msg.role}`, children: [_jsx("div", { className: "message-avatar", children: msg.role === "user" ? t("chat.you") : t("chat.ai") }), _jsxs("div", { className: "message-content", children: [msg.content, msg.sources && msg.sources.length > 0 && (_jsx("div", { className: "message-sources", children: _jsxs("details", { children: [_jsxs("summary", { children: [msg.sources.length, " ", t("chat.sourcesUsed")] }), msg.sources.map((src, sIdx) => (_jsxs("div", { className: "source-item", children: [src.fileName, " | Chunk ", src.chunkIndex, " |", " ", (src.similarity * 100).toFixed(1), "% ", t("chat.relevance"), sourceToUrl(src) && (_jsxs(_Fragment, { children: [" ", "|", " ", _jsx("button", { type: "button", className: "source-external-link", onClick: () => {
+                                                                                const u = sourceToUrl(src);
+                                                                                if (u) {
+                                                                                    void window.chatApi.openExternal(u);
+                                                                                }
+                                                                            }, children: "Website" })] }))] }, sIdx)))] }) }))] })] }, idx))), isLoading && (_jsxs("div", { className: "message assistant", children: [_jsx("div", { className: "message-avatar", children: t("chat.ai") }), _jsx("div", { className: "message-content", children: _jsxs("div", { className: "typing-indicator", children: [_jsx("span", {}), _jsx("span", {}), _jsx("span", {})] }) })] })), _jsx("div", { ref: messagesEndRef })] }), _jsx("div", { className: "chat-input-area", children: _jsxs("div", { className: "chat-input-wrapper", children: [_jsx("textarea", { ref: textareaRef, value: input, onChange: handleTextareaInput, onKeyDown: handleKeyDown, placeholder: t("chat.placeholder"), rows: 1, disabled: isLoading }), _jsx("button", { className: "send-btn", onClick: () => void sendMessage(), disabled: isLoading || !input.trim(), title: "Send", children: "\u27A4" })] }) })] })] }));
 }

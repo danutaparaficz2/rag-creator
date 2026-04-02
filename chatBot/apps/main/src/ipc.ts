@@ -1,4 +1,4 @@
-import { ipcMain } from "electron";
+import { ipcMain, shell } from "electron";
 import type { ChatLocale, ChatMessage, ChatSettings } from "@ragchat/shared";
 import { ChatApiClient, type AppSettings } from "./services/chatApiClient.js";
 
@@ -33,5 +33,13 @@ export function registerIpcHandlers(apiClient: ChatApiClient): void {
 
   ipcMain.handle("settings:save", async (_event, settings: AppSettings) => {
     return apiClient.saveAppSettings(settings);
+  });
+
+  ipcMain.handle("shell:open-external", async (_event, url: string) => {
+    const u = String(url ?? "").trim();
+    if (!/^https?:\/\//i.test(u)) {
+      throw new Error("Nur http(s)-URLs erlaubt.");
+    }
+    await shell.openExternal(u);
   });
 }

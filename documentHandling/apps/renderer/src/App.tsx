@@ -100,6 +100,7 @@ export default function App() {
   const [selectedFolderPath, setSelectedFolderPath] = useState<string | null>(null);
   const [folderIngestRunning, setFolderIngestRunning] = useState(false);
   const [folderActionLog, setFolderActionLog] = useState<string>("");
+  const [reindexAllRunning, setReindexAllRunning] = useState(false);
 
   function appendFolderLog(line: string): void {
     const stamp = new Date().toLocaleTimeString();
@@ -466,6 +467,37 @@ export default function App() {
     await reloadDocuments();
   }
 
+  async function reindexAllDocuments(): Promise<void> {
+    if (!window.ragApi) {
+      setHealthMessage(t("upload.noRagApi"));
+      return;
+    }
+    if (!isConnectionReady) {
+      setHealthMessage(t("settings.testFirst"));
+      return;
+    }
+    const ids = documents.map((d) => d.docId);
+    if (ids.length === 0) {
+      setHealthMessage(t("header.reindexAllNone"));
+      return;
+    }
+    if (!window.confirm(t("header.reindexAllConfirm", String(ids.length)))) {
+      return;
+    }
+    setReindexAllRunning(true);
+    try {
+      await window.ragApi.reindexDocuments(ids);
+      await reloadDocuments();
+      setHealthMessage(t("header.reindexAllStarted", String(ids.length)));
+    } catch (err: unknown) {
+      const detail = formatErrorDetail(err);
+      console.error("[rag] reindexAllDocuments", err);
+      setHealthMessage(detail);
+    } finally {
+      setReindexAllRunning(false);
+    }
+  }
+
   async function removeSelectedDocuments(): Promise<void> {
     if (selectedDocumentIds.length === 0) return;
     await window.ragApi.removeDocuments(selectedDocumentIds);
@@ -557,6 +589,13 @@ export default function App() {
               </button>
               <button onClick={() => void reindexSelectedDocuments()} disabled={selectedDocumentIds.length === 0}>
                 {t("header.reindexSelected")}
+              </button>
+              <button
+                type="button"
+                onClick={() => void reindexAllDocuments()}
+                disabled={!isConnectionReady || documents.length === 0 || reindexAllRunning}
+              >
+                {reindexAllRunning ? t("header.reindexAllRunning") : t("header.reindexAll")}
               </button>
               <button onClick={() => void removeSelectedDocuments()} disabled={selectedDocumentIds.length === 0}>
                 {t("header.removeSelected")}

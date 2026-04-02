@@ -80,6 +80,7 @@ export default function App() {
     const [selectedFolderPath, setSelectedFolderPath] = useState(null);
     const [folderIngestRunning, setFolderIngestRunning] = useState(false);
     const [folderActionLog, setFolderActionLog] = useState("");
+    const [reindexAllRunning, setReindexAllRunning] = useState(false);
     function appendFolderLog(line) {
         const stamp = new Date().toLocaleTimeString();
         const row = `[${stamp}] ${line}`;
@@ -423,6 +424,38 @@ export default function App() {
         await window.ragApi.reindexDocuments(selectedDocumentIds);
         await reloadDocuments();
     }
+    async function reindexAllDocuments() {
+        if (!window.ragApi) {
+            setHealthMessage(t("upload.noRagApi"));
+            return;
+        }
+        if (!isConnectionReady) {
+            setHealthMessage(t("settings.testFirst"));
+            return;
+        }
+        const ids = documents.map((d) => d.docId);
+        if (ids.length === 0) {
+            setHealthMessage(t("header.reindexAllNone"));
+            return;
+        }
+        if (!window.confirm(t("header.reindexAllConfirm", String(ids.length)))) {
+            return;
+        }
+        setReindexAllRunning(true);
+        try {
+            await window.ragApi.reindexDocuments(ids);
+            await reloadDocuments();
+            setHealthMessage(t("header.reindexAllStarted", String(ids.length)));
+        }
+        catch (err) {
+            const detail = formatErrorDetail(err);
+            console.error("[rag] reindexAllDocuments", err);
+            setHealthMessage(detail);
+        }
+        finally {
+            setReindexAllRunning(false);
+        }
+    }
     async function removeSelectedDocuments() {
         if (selectedDocumentIds.length === 0)
             return;
@@ -482,7 +515,7 @@ export default function App() {
         anchorElement.click();
         URL.revokeObjectURL(url);
     }
-    return (_jsxs("div", { className: "app-shell", children: [_jsxs("header", { className: "top-bar", children: [_jsxs("div", { className: "top-bar-left", children: [_jsx("h1", { children: t("app.title") }), _jsxs("div", { className: "tab-row", children: [_jsx("button", { type: "button", className: `tab-button ${activeTab === "documents" ? "active" : ""}`, onClick: () => setActiveTab("documents"), children: t("tabs.documents") }), _jsx("button", { type: "button", className: `tab-button ${activeTab === "settings" ? "active" : ""}`, onClick: () => setActiveTab("settings"), children: t("tabs.settings") })] })] }), _jsxs("div", { className: "button-row", children: [activeTab === "documents" && (_jsxs(_Fragment, { children: [_jsx("button", { type: "button", onClick: () => void uploadWithPicker(), children: t("header.addDocuments") }), _jsx("button", { onClick: () => void reindexSelectedDocuments(), disabled: selectedDocumentIds.length === 0, children: t("header.reindexSelected") }), _jsx("button", { onClick: () => void removeSelectedDocuments(), disabled: selectedDocumentIds.length === 0, children: t("header.removeSelected") }), _jsx("button", { onClick: () => void removeNotIngestedDocuments(), children: "Alle nicht eingelesenen entfernen" }), _jsx("button", { onClick: () => void exportCsv(), children: t("header.exportCsv") })] })), _jsxs("div", { className: "lang-switcher", children: [_jsxs("span", { children: [t("settings.language"), ":"] }), _jsx("button", { className: `lang-toggle ${locale === "de" ? "active" : ""}`, onClick: () => setLocale("de"), type: "button", children: "DE" }), _jsx("button", { className: `lang-toggle ${locale === "en" ? "active" : ""}`, onClick: () => setLocale("en"), type: "button", children: "EN" })] })] })] }), activeTab === "documents" && (_jsxs(_Fragment, { children: [_jsx("section", { className: `drop-zone ${isDropActive ? "drop-zone-active" : ""}`, onDragOver: (event) => {
+    return (_jsxs("div", { className: "app-shell", children: [_jsxs("header", { className: "top-bar", children: [_jsxs("div", { className: "top-bar-left", children: [_jsx("h1", { children: t("app.title") }), _jsxs("div", { className: "tab-row", children: [_jsx("button", { type: "button", className: `tab-button ${activeTab === "documents" ? "active" : ""}`, onClick: () => setActiveTab("documents"), children: t("tabs.documents") }), _jsx("button", { type: "button", className: `tab-button ${activeTab === "settings" ? "active" : ""}`, onClick: () => setActiveTab("settings"), children: t("tabs.settings") })] })] }), _jsxs("div", { className: "button-row", children: [activeTab === "documents" && (_jsxs(_Fragment, { children: [_jsx("button", { type: "button", onClick: () => void uploadWithPicker(), children: t("header.addDocuments") }), _jsx("button", { onClick: () => void reindexSelectedDocuments(), disabled: selectedDocumentIds.length === 0, children: t("header.reindexSelected") }), _jsx("button", { type: "button", onClick: () => void reindexAllDocuments(), disabled: !isConnectionReady || documents.length === 0 || reindexAllRunning, children: reindexAllRunning ? t("header.reindexAllRunning") : t("header.reindexAll") }), _jsx("button", { onClick: () => void removeSelectedDocuments(), disabled: selectedDocumentIds.length === 0, children: t("header.removeSelected") }), _jsx("button", { onClick: () => void removeNotIngestedDocuments(), children: "Alle nicht eingelesenen entfernen" }), _jsx("button", { onClick: () => void exportCsv(), children: t("header.exportCsv") })] })), _jsxs("div", { className: "lang-switcher", children: [_jsxs("span", { children: [t("settings.language"), ":"] }), _jsx("button", { className: `lang-toggle ${locale === "de" ? "active" : ""}`, onClick: () => setLocale("de"), type: "button", children: "DE" }), _jsx("button", { className: `lang-toggle ${locale === "en" ? "active" : ""}`, onClick: () => setLocale("en"), type: "button", children: "EN" })] })] })] }), activeTab === "documents" && (_jsxs(_Fragment, { children: [_jsx("section", { className: `drop-zone ${isDropActive ? "drop-zone-active" : ""}`, onDragOver: (event) => {
                             if (!isConnectionReady)
                                 return;
                             event.preventDefault();

@@ -26,6 +26,7 @@ declare global {
       healthCheck: () => Promise<{ status: string; message: string }>;
       getSettings: () => Promise<AppSettings>;
       saveSettings: (settings: AppSettings) => Promise<AppSettings>;
+      openExternal: (url: string) => Promise<void>;
     };
   }
 }

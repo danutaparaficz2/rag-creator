@@ -76,16 +76,21 @@ class ChatService:
 
         if preferred_language == "de":
             language_instruction = (
-                "IMPORTANT: Always respond in German (Deutsch), regardless of document language."
+                "MANDATORY OUTPUT LANGUAGE: German (Deutsch). "
+                "Your entire final answer MUST be in German only."
             )
+            language_user_suffix = "WICHTIG: Antworte ausschliesslich auf Deutsch."
         elif preferred_language == "en":
             language_instruction = (
-                "IMPORTANT: Always respond in English, regardless of document language."
+                "MANDATORY OUTPUT LANGUAGE: English. "
+                "Your entire final answer MUST be in English only."
             )
+            language_user_suffix = "IMPORTANT: Reply strictly in English only."
         else:
             language_instruction = (
                 "IMPORTANT: Always respond in the same language the user writes in."
             )
+            language_user_suffix = ""
 
         system_prompt = (
             f"{self._chat_settings.system_prompt}\n\n"
@@ -98,7 +103,8 @@ class ChatService:
         messages: list[dict[str, str]] = [{"role": "system", "content": system_prompt}]
         for msg in history:
             messages.append({"role": msg.role, "content": msg.content})
-        messages.append({"role": "user", "content": query})
+        user_content = query if not language_user_suffix else f"{query}\n\n{language_user_suffix}"
+        messages.append({"role": "user", "content": user_content})
 
         try:
             client = OpenAI(

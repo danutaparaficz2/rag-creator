@@ -81,12 +81,58 @@ export default function App() {
     }
   }
 
-  function sourceToUrl(src: ContextChunk): string | null {
-    const candidate = (src.sourcePath || src.fileName || "").trim();
-    if (!candidate) return null;
-    if (/^https?:\/\//i.test(candidate)) return candidate;
-    if (candidate.startsWith("www.")) return `https://${candidate}`;
+  function normalizeHttpUrl(raw: string): string | null {
+    let u = raw.trim();
+    if (!u) return null;
+    // Kaputte Extraktion: "ahttps://..." (z. B. Rest von <a href=...)
+    if (/^ahttps?:\/\//i.test(u)) {
+      u = u.slice(1);
+    }
+    if (/^https?:\/\//i.test(u)) return u;
+    if (u.startsWith("www.")) return `https://${u}`;
     return null;
+  }
+
+  /** URLs aus MD/HTML: <a href="...">, href="...", [text](url), source: ... */
+  function extractUrlFromChunkText(text: string): string | null {
+    const t = text || "";
+    const patterns: RegExp[] = [
+      /<a\s[^>]*\bhref\s*=\s*["']([^"']+)["']/gi,
+      /\bhref\s*=\s*["'](https?:\/\/[^"']+)["']/gi,
+      /\[[^\]]*]\((https?:\/\/[^)\s]+)\)/g,
+      /(?:^|\n)\s*(?:source|url)\s*:\s*(?:<a[^>]*\bhref\s*=\s*["'])?(https?:\/\/[^\s"'<>\]]+)/i,
+      /(?:^|\n)\s*(?:source|url)\s*:\s*(https?:\/\/[^\s)\]]+)/i,
+      /(?:^|\n)\s*(?:source|url)\s*:\s*(www\.[^\s)\]"'<>\]]+)/i
+    ];
+    for (const re of patterns) {
+      re.lastIndex = 0;
+      let m: RegExpExecArray | null;
+      while ((m = re.exec(t)) !== null) {
+        const g = m[1] ?? m[0];
+        const n = normalizeHttpUrl(g);
+        if (n) return n;
+      }
+    }
+    const bare = t.match(/https?:\/\/[^\s)\]"'<>\]]+/i);
+    if (bare?.[0]) {
+      const n = normalizeHttpUrl(bare[0]);
+      if (n) return n;
+    }
+    return null;
+  }
+
+  function sourceToUrl(src: ContextChunk): string | null {
+    const fromFields = [src.sourcePath || "", src.source || "", src.fileName || ""];
+    for (const raw of fromFields) {
+      const candidate = raw.trim();
+      if (!candidate) continue;
+      const fromHtml = extractUrlFromChunkText(candidate);
+      if (fromHtml) return fromHtml;
+      const n = normalizeHttpUrl(candidate);
+      if (n) return n;
+    }
+
+    return extractUrlFromChunkText(src.text || "");
   }
 
   async function checkHealth(): Promise<void> {
@@ -330,9 +376,18 @@ export default function App() {
                             <>
                               {" "}
                               |{" "}
-                              <a href={sourceToUrl(src) || "#"} target="_blank" rel="noreferrer">
+                              <button
+                                type="button"
+                                className="source-external-link"
+                                onClick={() => {
+                                  const u = sourceToUrl(src);
+                                  if (u) {
+                                    void window.chatApi.openExternal(u);
+                                  }
+                                }}
+                              >
                                 Website
-                              </a>
+                              </button>
                             </>
                           )}
                         </div>

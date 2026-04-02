@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import logging
 import os
+import re
 from typing import Any
 
 import numpy as np
@@ -27,6 +28,68 @@ _logger = logging.getLogger(__name__)
 
 _MODEL_CACHE: dict[str, SentenceTransformer] = {}
 _BINARY_OFFICE_EXTENSIONS = {".pdf", ".docx", ".pptx"}
+
+# Erste Zeilen / Kopfbereich: URL aus HTML, YAML, Markdown oder Klartext
+_A_HREF_RE = re.compile(
+    r'<a\s[^>]*\bhref\s*=\s*["\']([^"\']+)["\']',
+    re.IGNORECASE | re.DOTALL,
+)
+_MD_LINK_RE = re.compile(r"\[[^\]]*\]\((https?://[^)\s]+)\)")
+_BARE_URL_RE = re.compile(r"https?://[^\s<>\"'`\)\]]+")
+
+
+def _normalize_http_url(candidate: str) -> str | None:
+    s = (candidate or "").strip().strip('"').strip("'")
+    if not s:
+        return None
+    if s.startswith("ahttps://") or s.startswith("ahttp://"):
+        s = s[1:]
+    if s.startswith("https://") or s.startswith("http://"):
+        return s.rstrip(".,;)")
+    return None
+
+
+def extract_header_canonical_url(raw_text: str, extension: str) -> str | None:
+    """URL aus dem Kopf von MD/HTML/TXT (z. B. <a href=...> oben im Dokument)."""
+    if extension not in {".md", ".html", ".htm", ".txt"}:
+        return None
+    head = raw_text[:8000]
+    for m in _A_HREF_RE.finditer(head):
+        u = _normalize_http_url(m.group(1))
+        if u:
+            return u
+    for line in head.splitlines()[:60]:
+        ln = line.strip()
+        if re.match(r"^(?:source|url)\s*:\s*", ln, re.I):
+            rest = re.sub(r"^(?:source|url)\s*:\s*", "", ln, flags=re.I).strip()
+            if "<a" in rest.lower():
+                mm = _A_HREF_RE.search(rest)
+                if mm:
+                    u = _normalize_http_url(mm.group(1))
+                    if u:
+                        return u
+            u = _normalize_http_url(rest)
+            if u:
+                return u
+            parts = rest.split()
+            if parts:
+                u = _normalize_http_url(parts[0])
+                if u:
+                    return u
+    for m in _MD_LINK_RE.finditer(head):
+        u = _normalize_http_url(m.group(1))
+        if u:
+            return u
+    for line in head.splitlines()[:60]:
+        ln = line.strip()
+        if ln.startswith("http://") or ln.startswith("https://"):
+            u = _normalize_http_url(ln.split()[0])
+            if u:
+                return u
+    m = _BARE_URL_RE.search(head)
+    if m:
+        return _normalize_http_url(m.group(0))
+    return None
 
 
 def chunk_text(text: str, chunk_size: int, chunk_overlap: int) -> list[str]:
@@ -94,18 +157,36 @@ def parse_document(
             "error": "Parsing fehlgeschlagen: PDF-Binaerdaten erkannt statt extrahiertem Text.",
         }
 
+    # Kopf-URL aus Rohdatei lesen: unstructured kann bei MD/HTML <a href> entfernen.
+    header_url: str | None = None
+    if extension in {".md", ".html", ".htm"}:
+        try:
+            with open(input_path, "r", encoding="utf-8", errors="ignore") as fh:
+                raw_head = fh.read(16000)
+            header_url = extract_header_canonical_url(raw_head, extension)
+        except OSError:
+            header_url = extract_header_canonical_url(text, extension)
+    else:
+        header_url = extract_header_canonical_url(text, extension)
+
     chunks = chunk_text(text, chunk_size, chunk_overlap)
+    chunk_prefix = f"Quelle: {header_url}\n\n" if header_url else ""
+
     chunk_objects: list[dict[str, Any]] = []
     for idx, chunk_value in enumerate(chunks):
+        body = f"{chunk_prefix}{chunk_value}" if chunk_prefix else chunk_value
+        meta: dict[str, Any] = {
+            "sourcePath": input_path,
+            "extension": extension,
+            "sha256": hashlib.sha256(body.encode("utf-8")).hexdigest(),
+        }
+        if header_url:
+            meta["canonicalUrl"] = header_url
         chunk_objects.append(
             {
                 "chunkIndex": idx,
-                "text": chunk_value,
-                "metadata": {
-                    "sourcePath": input_path,
-                    "extension": extension,
-                    "sha256": hashlib.sha256(chunk_value.encode("utf-8")).hexdigest(),
-                },
+                "text": body,
+                "metadata": meta,
             }
         )
     return {"ok": True, "chunks": chunk_objects}
