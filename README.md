@@ -1,23 +1,25 @@
-# RAG Ingest Studio
+# RAG Ingest Studio + RAG Chat
 
-Produktionsnahe Desktop-App (Electron + React + TypeScript) zur lokalen Vorbereitung von Dokumenten fuer RAG:
+Desktop-Stack (Electron + React + TypeScript + FastAPI) fuer lokale Dokument-Ingestion und Chat ueber Vektor-Retrieval:
 
-- Upload per File Picker und Drag & Drop
+- Upload per File Picker, Drag & Drop und rekursiver Ordner-Ingest
 - Parsing + Chunking + lokale Embeddings (Python Worker)
-- Indexierung in Postgres mit `pgvector` (`rag_documents`)
-- Lokale Index-DB in SQLite (`better-sqlite3`)
-- Editierbarer Corpus als JSONL (und optional Markdown)
-- Reindex / Remove je Dokument oder im Bulk
+- Vektor-Backends pro Umgebung:
+  - `postgres` (pgvector)
+  - `sqlite_embedded` (ohne separaten Server)
+  - `qdrant_embedded` (lokaler Qdrant-Speicherordner, ohne separaten Server)
+- Lokale Index-DB in SQLite (`index.sqlite`) fuer Dokument-/Job-Metadaten
+- Editierbarer Corpus als JSONL (optional Markdown)
+- Reindex pro Dokument, Bulk und "Alle neu indexieren"
+- Chat-UI mit Quellenlinks (extern) und Antwort-Metriken (Dauer, Tokens, Tokens/s)
 
 ## Monorepo Struktur
 
 ```text
-apps/
-  main/           Electron Main Process + Services
-  renderer/       React UI (Vite)
-  python_worker/  Parsing + Embedding Worker (Python)
-packages/
-  shared/         Gemeinsame TypeScript-Typen (IPC Contracts)
+documentHandling/    Dokumentverwaltung + Ingestion UI (Electron)
+chatBot/             Chat UI (Electron)
+documentApi/         FastAPI Backend + Worker + Vector Stores
+scripts/             Startskripte (u. a. documentApi Runner)
 ```
 
 ## Systemdiagramm (Ingest + Reindex)
@@ -63,7 +65,7 @@ flowchart LR
 
 - Node.js 20+
 - Python 3.10+
-- Docker (fuer lokale Postgres-Instanz mit pgvector)
+- Docker (optional, nur fuer Postgres/pgvector)
 
 ## 1) Postgres (pgvector) lokal starten
 
@@ -73,9 +75,9 @@ docker run --name rag-pg -e POSTGRES_PASSWORD=postgres -e POSTGRES_USER=postgres
 
 Danach ist Postgres auf `localhost:5432` erreichbar.
 
-## 2) Python Worker einrichten
+## 2) documentApi Python-Umgebung einrichten
 
-Im Verzeichnis `apps/python_worker`:
+Im Verzeichnis `documentApi`:
 
 ```bash
 python -m venv .venv
@@ -83,10 +85,14 @@ python -m venv .venv
 .venv\Scripts\Activate.ps1
 # macOS/Linux:
 source .venv/bin/activate
-pip install -r requirements.txt
+python -m pip install -r requirements.txt
 ```
 
-Wichtig: Stelle sicher, dass `python` im Terminal auf dieses venv zeigt, wenn du die App startest.
+Wichtig: Alle API-Abhaengigkeiten (z. B. `qdrant-client`) in genau dieser venv installieren:
+
+```bash
+documentApi\.venv\Scripts\python.exe -m pip install -r documentApi/requirements.txt
+```
 
 ## 3) Node Dependencies installieren
 
@@ -106,11 +112,20 @@ npm run dev
 
 Das startet:
 
-- **documentApi** (FastAPI/Uvicorn) auf `http://127.0.0.1:8000` — venv unter `documentApi/.venv` muss existieren (`pip install -r documentApi/requirements.txt`)
+- **documentApi** (FastAPI/Uvicorn) auf `http://127.0.0.1:8000`
 - Vite Renderer auf `http://localhost:5173`
 - Electron Main Process (startet erst, wenn Renderer **und** Port 8000 bereit sind)
 
 Nur die API in einem eigenen Terminal: `npm run dev:api`
+
+Hinweis zu `qdrant_embedded`: Der API-Runner startet standardmaessig **ohne** `uvicorn --reload`, da der Qdrant-Ordner exklusiv gelockt wird.  
+Reload nur explizit aktivieren:
+
+```bash
+# PowerShell
+$env:DOCUMENT_API_RELOAD="1"
+npm run dev:api
+```
 
 ## 5) Production Build
 
@@ -138,16 +153,19 @@ Unterstruktur:
 - `corpus/<docId>.jsonl` - editierbare Source of Truth
 - `corpus/<docId>.md` - optionaler Markdown-Export
 - `index.sqlite` - Dokumente + Jobs
-- `settings.json` - lokale Einstellungen
+- `settings.json` - lokale Einstellungen (inkl. Vektor-Backend pro Umgebung)
+- `vector_sqlite/` - Speicher fuer `sqlite_embedded`
+- `vector_qdrant/` - Speicher fuer `qdrant_embedded`
 
 ## Kern-Funktionen
 
 - **Dashboard** mit Filter/Suche, Status, Chunk-Anzahl, Bulk-Aktionen
 - **Upload** per Picker oder Drag & Drop
 - **Corpus Viewer** (editierbar), Speichern + Reindex
-- **Settings** fuer DB Host/Port/Name/User/Passwort, Vector Table Name, Chunking, Embedding Model, Markdown Toggle
-- **Connection Test** fuer Postgres (Upload erst nach erfolgreichem Test moeglich)
+- **Settings** pro Umgebung inkl. Backend-Auswahl (`postgres`, `sqlite_embedded`, `qdrant_embedded`)
+- **Connection Test** backend-spezifisch (Postgres/SQLite/Qdrant)
 - **CSV Export** der Dokumentliste
+- **Chat** mit Quellenanzeige, "Website"-Button (externer Browser), Copy-Button und Antwort-Metriken
 
 ## Hinweise zu Idempotenz
 
