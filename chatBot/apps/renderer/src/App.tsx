@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from "react";
-import type { ChatMessage, ChatSettings, ContextChunk } from "@ragchat/shared";
+import type { ChatMessage, ChatSettings, ContextChunk, ChatResponse } from "@ragchat/shared";
 import { useI18n } from "./i18n";
 
 interface DisplayMessage {
   role: "user" | "assistant";
   content: string;
   sources?: ContextChunk[];
+  metrics?: ChatResponse["metrics"];
 }
 
 interface ChatEnvSettings {
@@ -44,6 +45,7 @@ export default function App() {
   const [notification, setNotification] = useState<{ type: "error" | "success"; text: string } | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [appSettings, setAppSettings] = useState<ChatEnvSettings | null>(null);
+  const [copiedMessageIndex, setCopiedMessageIndex] = useState<number | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -184,7 +186,8 @@ export default function App() {
       const assistantMessage: DisplayMessage = {
         role: "assistant",
         content: response.answer,
-        sources: response.contextChunks
+        sources: response.contextChunks,
+        metrics: response.metrics
       };
       setMessages((prev) => [...prev, assistantMessage]);
     } catch (err) {
@@ -214,6 +217,23 @@ export default function App() {
 
   function clearChat(): void {
     setMessages([]);
+  }
+
+  function formatElapsed(ms: number | undefined): string {
+    if (!ms || ms <= 0) return "-";
+    return ms >= 1000 ? `${(ms / 1000).toFixed(2)} s` : `${ms} ms`;
+  }
+
+  async function copyMessageContent(content: string, idx: number): Promise<void> {
+    const text = content?.trim() || "";
+    if (!text) return;
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedMessageIndex(idx);
+      setTimeout(() => setCopiedMessageIndex((old) => (old === idx ? null : old)), 1400);
+    } catch {
+      showNotification("error", "Kopieren fehlgeschlagen");
+    }
   }
 
   return (
@@ -363,6 +383,17 @@ export default function App() {
             <div key={idx} className={`message ${msg.role}`}>
               <div className="message-avatar">{msg.role === "user" ? t("chat.you") : t("chat.ai")}</div>
               <div className="message-content">
+                {msg.role === "assistant" && (
+                  <button
+                    type="button"
+                    className={`copy-result-btn ${copiedMessageIndex === idx ? "copied" : ""}`}
+                    onClick={() => void copyMessageContent(msg.content, idx)}
+                    title="Ergebnis kopieren"
+                    aria-label="Ergebnis kopieren"
+                  >
+                    {copiedMessageIndex === idx ? "✓" : "📋"}
+                  </button>
+                )}
                 {msg.content}
                 {msg.sources && msg.sources.length > 0 && (
                   <div className="message-sources">
@@ -395,6 +426,19 @@ export default function App() {
                         </div>
                       ))}
                     </details>
+                  </div>
+                )}
+                {msg.metrics && (
+                  <div className="message-metrics">
+                    <strong>{t("chat.metrics")}:</strong>{" "}
+                    {t("chat.metrics.elapsed")}: {formatElapsed(msg.metrics.elapsedMs)} |{" "}
+                    {t("chat.metrics.promptTokens")}: {msg.metrics.promptTokens ?? 0} |{" "}
+                    {t("chat.metrics.completionTokens")}: {msg.metrics.completionTokens ?? 0} |{" "}
+                    {t("chat.metrics.totalTokens")}: {msg.metrics.totalTokens ?? 0} |{" "}
+                    {t("chat.metrics.tokensPerSecond")}:{" "}
+                    {typeof msg.metrics.tokensPerSecond === "number"
+                      ? msg.metrics.tokensPerSecond.toFixed(2)
+                      : "0.00"}
                   </div>
                 )}
               </div>

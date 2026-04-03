@@ -6,13 +6,14 @@ import logging
 import io
 import json
 import re
+import sys
 import time
 import uuid
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from .config import _DEFAULT_SETTINGS, load_settings, save_settings as persist_settings
+from .config import _DEFAULT_SETTINGS, get_app_paths, load_settings, save_settings as persist_settings
 from .database import IndexDatabase
 from .file_store import FileStore, create_sha256
 from .models import (
@@ -29,7 +30,9 @@ from .models import (
 )
 from .services.thread_pool import run_in_worker_pool
 from .services.folder_scan import iter_files_recursive
-from .vector_service import PostgresVectorService
+from .vector_store.factory import create_vector_store, resolve_qdrant_path, resolve_sqlite_path
+from .vector_store.postgres_store import PostgresVectorStore
+from .vector_store.protocol import VectorStore
 from .worker import embed_texts, parse_document
 
 _logger = logging.getLogger(__name__)
@@ -64,7 +67,7 @@ class IngestService:
         self,
         database: IndexDatabase,
         file_store: FileStore,
-        vector_service: PostgresVectorService,
+        vector_service: VectorStore,
     ) -> None:
         self._db = database
         self._fs = file_store
@@ -82,17 +85,12 @@ class IngestService:
     def _active_environment_id(self) -> str:
         return self._settings.active_postgres_environment_id
 
+    def _rebuild_vector_store(self) -> None:
+        self._vs = create_vector_store(self._active_pg(), get_app_paths()["base"])
+
     async def initialize(self) -> None:
         self._settings = load_settings()
-        pg = self._active_pg()
-        self._vs.update_connection_config(
-            host=pg.db_host,
-            port=pg.db_port,
-            database=pg.db_name,
-            user=pg.db_user,
-            password=pg.db_password,
-            schema=pg.db_schema,
-        )
+        self._rebuild_vector_store()
         # In-Memory-Queue ist nach Neustart leer; SQLite kennt noch queued/processing.
         env_id = self._active_environment_id()
         n_reset, n_jobs = self._db.recover_after_api_restart(env_id)
@@ -380,7 +378,11 @@ class IngestService:
         merged_envs: list[PostgresEnvironment] = []
         for env in incoming.postgres_environments:
             prev = by_id.get(env.environment_id)
-            if prev is not None and (env.db_password is None or str(env.db_password).strip() == ""):
+            if (
+                prev is not None
+                and env.vector_backend == "postgres"
+                and (env.db_password is None or str(env.db_password).strip() == "")
+            ):
                 merged_envs.append(env.model_copy(update={"db_password": prev.db_password}))
             else:
                 merged_envs.append(env)
@@ -390,15 +392,14 @@ class IngestService:
         merged = self._merge_db_passwords_from_stored(settings)
         self._settings = persist_settings(merged)
         self._is_db_validated = False
-        pg = self._active_pg()
-        self._vs.update_connection_config(
-            host=pg.db_host,
-            port=pg.db_port,
-            database=pg.db_name,
-            user=pg.db_user,
-            password=pg.db_password,
-            schema=pg.db_schema,
-        )
+        try:
+            self._rebuild_vector_store()
+        except Exception as exc:
+            # Settings sollen speicherbar bleiben, auch wenn das gewaehlte Backend lokal noch fehlt.
+            _logger.warning(
+                "vector store konnte nach save_settings nicht initialisiert werden (wird im Connection Test sichtbar): %s",
+                exc,
+            )
         from .dependencies import get_chat_service
 
         try:
@@ -415,7 +416,7 @@ class IngestService:
         working_settings: AppSettings | None = None,
     ) -> dict:
         """
-        Testet Postgres + pgvector-Schema.
+        Testet die Vektor-Datenbank der aktiven Umgebung (Postgres+pgvector, SQLite embedded oder Qdrant embedded).
         Wenn working_settings gesetzt ist (Formular aus der UI), werden diese Werte genutzt —
         bei Erfolg werden sie persistiert (wie „Speichern“ nach erfolgreichem Test).
         """
@@ -426,72 +427,97 @@ class IngestService:
         else:
             app_for_pg = self._settings
         pg = app_for_pg.get_active_postgres()
-        try:
-            import psycopg2
+        base = get_app_paths()["base"]
+        base.mkdir(parents=True, exist_ok=True)
 
-            conn = psycopg2.connect(
-                host=pg.db_host,
-                port=pg.db_port,
-                dbname=pg.db_name,
-                user=pg.db_user,
-                password=pg.db_password,
-                connect_timeout=15,
-            )
-            conn.autocommit = True
-            cur = conn.cursor()
-            cur.execute("SELECT 1")
-            cur.close()
-            conn.close()
-        except Exception as exc:
+        try:
+            if pg.vector_backend == "postgres":
+                import psycopg2
+
+                conn = psycopg2.connect(
+                    host=pg.db_host,
+                    port=pg.db_port,
+                    dbname=pg.db_name,
+                    user=pg.db_user,
+                    password=pg.db_password,
+                    connect_timeout=15,
+                )
+                conn.autocommit = True
+                cur = conn.cursor()
+                cur.execute("SELECT 1")
+                cur.close()
+                conn.close()
+                vs = PostgresVectorStore(
+                    host=pg.db_host,
+                    port=pg.db_port,
+                    database=pg.db_name,
+                    user=pg.db_user,
+                    password=pg.db_password,
+                    schema=pg.db_schema,
+                )
+                vs.ensure_schema(pg.db_table_name)
+                self._vs = vs
+            elif pg.vector_backend == "sqlite_embedded":
+                from .vector_store.sqlite_embedded import SqliteEmbeddedVectorStore
+
+                p = resolve_sqlite_path(pg, base)
+                vs = SqliteEmbeddedVectorStore(p)
+                vs.ensure_schema(pg.db_table_name)
+                self._vs = vs
+            elif pg.vector_backend == "qdrant_embedded":
+                from .vector_store.qdrant_embedded import QdrantEmbeddedVectorStore
+
+                p = resolve_qdrant_path(pg, base)
+                vs = QdrantEmbeddedVectorStore(p)
+                vs.ensure_schema(pg.db_table_name)
+                self._vs = vs
+            else:
+                self._is_db_validated = False
+                return {"status": "error", "message": f"Unbekannter vectorBackend: {pg.vector_backend}"}
+        except ImportError as exc:
             self._is_db_validated = False
-            return {"status": "error", "message": f"connection test failed: {exc}"}
-
-        try:
-            # Gleiche Zugangsdaten wie der direkte Connect (Pool kann veraltet sein)
-            vs = PostgresVectorService(
-                host=pg.db_host,
-                port=pg.db_port,
-                database=pg.db_name,
-                user=pg.db_user,
-                password=pg.db_password,
-                schema=pg.db_schema,
-            )
-            vs.ensure_schema(pg.db_table_name)
-            self._vs.update_connection_config(
-                host=pg.db_host,
-                port=pg.db_port,
-                database=pg.db_name,
-                user=pg.db_user,
-                password=pg.db_password,
-                schema=pg.db_schema,
-            )
-            self._is_db_validated = True
-            if merged_working is not None:
-                self._settings = persist_settings(merged_working)
-                from .dependencies import get_chat_service
-
-                try:
-                    get_chat_service().update_settings(self._settings)
-                except RuntimeError:
-                    pass
             return {
-                "status": "ok",
+                "status": "error",
                 "message": (
-                    f"connection test success, schema ready "
-                    f"({pg.db_schema}.{pg.db_table_name}, {pg.db_name}@{pg.db_host})"
+                    "connection test failed: "
+                    f"{exc} | Python interpreter: {sys.executable} | "
+                    "Installiere Pakete genau in dieser Umgebung, z. B. "
+                    f"\"{sys.executable}\" -m pip install qdrant-client"
                 ),
             }
         except Exception as exc:
             self._is_db_validated = False
-            return {
-                "status": "error",
-                "message": f"connection test failed while creating schema: {exc}",
-            }
+            return {"status": "error", "message": f"connection test failed: {exc}"}
+
+        self._is_db_validated = True
+        if merged_working is not None:
+            self._settings = persist_settings(merged_working)
+            from .dependencies import get_chat_service
+
+            try:
+                get_chat_service().update_settings(self._settings)
+            except RuntimeError:
+                pass
+        msg = self._connection_test_success_message(pg, base)
+        return {"status": "ok", "message": msg}
+
+    @staticmethod
+    def _connection_test_success_message(pg: PostgresEnvironment, base_dir: Path) -> str:
+        if pg.vector_backend == "postgres":
+            return (
+                f"connection test success, schema ready "
+                f"({pg.db_schema}.{pg.db_table_name}, {pg.db_name}@{pg.db_host})"
+            )
+        if pg.vector_backend == "sqlite_embedded":
+            return f"connection test success, sqlite embedded ready ({resolve_sqlite_path(pg, base_dir)})"
+        if pg.vector_backend == "qdrant_embedded":
+            return f"connection test success, qdrant embedded ready ({resolve_qdrant_path(pg, base_dir)})"
+        return "connection test success"
 
     async def run_health_check(self) -> dict:
-        pg = self._vs.health_check()
+        vc = self._vs.health_check()
         pw = {"status": "ok", "message": "Python Worker ist bereit."}
-        return {"postgres": pg, "pythonWorker": pw}
+        return {"postgres": vc, "vectorDatabase": vc, "pythonWorker": pw}
 
     def export_documents_as_csv(self) -> str:
         docs = self._db.list_documents(self._active_environment_id())

@@ -21,11 +21,16 @@ if (!fs.existsSync(python)) {
   process.exit(1);
 }
 
-const child = spawn(
-  python,
-  ["-m", "uvicorn", "app.main:app", "--reload", "--host", "127.0.0.1", "--port", "8000"],
-  { cwd: apiDir, stdio: "inherit", shell: false }
-);
+// Qdrant embedded: exklusive Sperre auf dem Ordner — mit uvicorn --reload kann der Reloader/Worker kurz ueberlappen
+// und die API startet nicht. Standard: ohne Reload; bei Bedarf: DOCUMENT_API_RELOAD=1
+const argv = ["-m", "uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", "8000"];
+const reload =
+  process.env.DOCUMENT_API_RELOAD === "1" || process.env.DOCUMENT_API_RELOAD === "true";
+if (reload) {
+  argv.push("--reload");
+}
+
+const child = spawn(python, argv, { cwd: apiDir, stdio: "inherit", shell: false });
 
 child.on("exit", (code, signal) => {
   if (signal) {

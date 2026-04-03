@@ -292,6 +292,7 @@ body {
   line-height: 1.55;
   white-space: pre-wrap;
   word-break: break-word;
+  position: relative;
 }
 
 .message.user .message-content {
@@ -305,9 +306,43 @@ body {
   color: var(--text-primary);
   border: 1px solid var(--border);
   border-bottom-left-radius: 4px;
+  padding-top: 34px;
+}
+
+.copy-result-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 22px;
+  height: 22px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-primary);
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.copy-result-btn:hover {
+  color: var(--text-primary);
+  border-color: var(--accent);
+}
+
+.copy-result-btn.copied {
+  color: var(--success);
+  border-color: var(--success);
 }
 
 .message-sources {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.message-metrics {
   margin-top: 8px;
   padding-top: 8px;
   border-top: 1px solid var(--border);

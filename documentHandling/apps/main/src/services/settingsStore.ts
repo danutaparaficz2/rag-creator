@@ -7,13 +7,16 @@ export const defaultSettings: AppSettings = {
     {
       id: "default",
       name: "Standard",
+      vectorBackend: "postgres",
       dbHost: "localhost",
       dbPort: 5432,
       dbName: "rag",
       dbUser: "postgres",
       dbPassword: "",
       dbSchema: "public",
-      dbTableName: "rag_documents"
+      dbTableName: "rag_documents",
+      sqliteFilePath: "",
+      qdrantLocalPath: ""
     }
   ],
   chunkSize: 900,

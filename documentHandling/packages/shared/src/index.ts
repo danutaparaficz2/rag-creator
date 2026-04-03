@@ -31,9 +31,13 @@ export interface JobRecord {
   message: string;
 }
 
+export type VectorBackend = "postgres" | "sqlite_embedded" | "qdrant_embedded";
+
 export interface PostgresEnvironment {
   id: string;
   name: string;
+  /** Vektor-Speicher: Postgres, SQLite ohne Server oder Qdrant lokal. */
+  vectorBackend: VectorBackend;
   dbHost: string;
   dbPort: number;
   dbName: string;
@@ -41,7 +45,12 @@ export interface PostgresEnvironment {
   dbPassword: string;
   /** Postgres-Schema fuer die Vektor-Tabelle (z. B. public, rag_a, rag_b). */
   dbSchema: string;
+  /** Tabellen-/Collection-Name (Postgres, SQLite, Qdrant). */
   dbTableName: string;
+  /** Relativ zu ~/RAGIngestStudio oder absolut; leer = automatisch vector_sqlite/<id>.sqlite */
+  sqliteFilePath: string;
+  /** Relativ zu ~/RAGIngestStudio oder absolut; leer = automatisch vector_qdrant/<id>/ */
+  qdrantLocalPath: string;
 }
 
 export interface AppSettings {
@@ -60,13 +69,16 @@ export const defaultAppSettings: AppSettings = {
     {
       id: "default",
       name: "Standard",
+      vectorBackend: "postgres",
       dbHost: "localhost",
       dbPort: 5432,
       dbName: "rag",
       dbUser: "postgres",
       dbPassword: "",
       dbSchema: "public",
-      dbTableName: "rag_documents"
+      dbTableName: "rag_documents",
+      sqliteFilePath: "",
+      qdrantLocalPath: ""
     }
   ],
   chunkSize: 900,

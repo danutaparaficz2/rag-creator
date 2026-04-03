@@ -4,7 +4,8 @@ import {
   type AppSettings,
   type DocumentRecord,
   type PostgresEnvironment,
-  type ProgressEventPayload
+  type ProgressEventPayload,
+  type VectorBackend
 } from "@rag/shared";
 import { useI18n } from "./i18n";
 
@@ -153,12 +154,14 @@ export default function App() {
       setSettings(loadedSettings);
 
       const activeEnv = getActivePostgresEnv(loadedSettings);
+      const vb = activeEnv?.vectorBackend ?? "postgres";
       const hasDbConfig =
         activeEnv !== undefined &&
-        activeEnv.dbHost.trim().length > 0 &&
-        activeEnv.dbName.trim().length > 0 &&
-        activeEnv.dbUser.trim().length > 0 &&
-        Number(activeEnv.dbPort) > 0;
+        (vb !== "postgres" ||
+          (activeEnv.dbHost.trim().length > 0 &&
+            activeEnv.dbName.trim().length > 0 &&
+            activeEnv.dbUser.trim().length > 0 &&
+            Number(activeEnv.dbPort) > 0));
 
       try {
         const state = await api.getDatabaseConnectionState();
@@ -267,6 +270,9 @@ export default function App() {
       }),
     [documents, searchText, statusFilter, typeFilter, tagFilter]
   );
+
+  const activePgEnvResolved = getActivePostgresEnv(settings);
+  const activeVectorBackend: VectorBackend = activePgEnvResolved?.vectorBackend ?? "postgres";
 
   async function uploadWithPicker(): Promise<void> {
     if (!window.ragApi) {
@@ -914,63 +920,116 @@ export default function App() {
                 />
               </label>
               <label>
-                {t("settings.dbHost")}
-                <input
-                  value={getActivePostgresEnv(settings)?.dbHost ?? ""}
-                  onChange={(event) =>
-                    setSettings((old) => (old ? updateActivePostgresEnv(old, { dbHost: event.target.value }) : old))
-                  }
-                />
-              </label>
-              <label>
-                {t("settings.dbPort")}
-                <input
-                  type="number"
-                  value={getActivePostgresEnv(settings)?.dbPort ?? 5432}
+                {t("settings.vectorBackend")}
+                <select
+                  value={activeVectorBackend}
                   onChange={(event) =>
                     setSettings((old) =>
-                      old ? updateActivePostgresEnv(old, { dbPort: Number(event.target.value) || 5432 }) : old
+                      old
+                        ? updateActivePostgresEnv(old, {
+                            vectorBackend: event.target.value as VectorBackend
+                          })
+                        : old
                     )
                   }
-                />
+                >
+                  <option value="postgres">{t("settings.vectorBackend.postgres")}</option>
+                  <option value="sqlite_embedded">{t("settings.vectorBackend.sqlite")}</option>
+                  <option value="qdrant_embedded">{t("settings.vectorBackend.qdrant")}</option>
+                </select>
               </label>
-              <label>
-                {t("settings.dbName")}
-                <input
-                  value={getActivePostgresEnv(settings)?.dbName ?? ""}
-                  onChange={(event) =>
-                    setSettings((old) => (old ? updateActivePostgresEnv(old, { dbName: event.target.value }) : old))
-                  }
-                />
-              </label>
-              <label>
-                {t("settings.dbSchema")}
-                <input
-                  value={getActivePostgresEnv(settings)?.dbSchema ?? "public"}
-                  onChange={(event) =>
-                    setSettings((old) => (old ? updateActivePostgresEnv(old, { dbSchema: event.target.value }) : old))
-                  }
-                />
-              </label>
-              <label>
-                {t("settings.dbUser")}
-                <input
-                  value={getActivePostgresEnv(settings)?.dbUser ?? ""}
-                  onChange={(event) =>
-                    setSettings((old) => (old ? updateActivePostgresEnv(old, { dbUser: event.target.value }) : old))
-                  }
-                />
-              </label>
-              <label>
-                {t("settings.dbPassword")}
-                <input
-                  type="password"
-                  value={getActivePostgresEnv(settings)?.dbPassword ?? ""}
-                  onChange={(event) =>
-                    setSettings((old) => (old ? updateActivePostgresEnv(old, { dbPassword: event.target.value }) : old))
-                  }
-                />
-              </label>
+              {activeVectorBackend === "postgres" ? (
+                <>
+                  <label>
+                    {t("settings.dbHost")}
+                    <input
+                      value={getActivePostgresEnv(settings)?.dbHost ?? ""}
+                      onChange={(event) =>
+                        setSettings((old) => (old ? updateActivePostgresEnv(old, { dbHost: event.target.value }) : old))
+                      }
+                    />
+                  </label>
+                  <label>
+                    {t("settings.dbPort")}
+                    <input
+                      type="number"
+                      value={getActivePostgresEnv(settings)?.dbPort ?? 5432}
+                      onChange={(event) =>
+                        setSettings((old) =>
+                          old ? updateActivePostgresEnv(old, { dbPort: Number(event.target.value) || 5432 }) : old
+                        )
+                      }
+                    />
+                  </label>
+                  <label>
+                    {t("settings.dbName")}
+                    <input
+                      value={getActivePostgresEnv(settings)?.dbName ?? ""}
+                      onChange={(event) =>
+                        setSettings((old) => (old ? updateActivePostgresEnv(old, { dbName: event.target.value }) : old))
+                      }
+                    />
+                  </label>
+                  <label>
+                    {t("settings.dbSchema")}
+                    <input
+                      value={getActivePostgresEnv(settings)?.dbSchema ?? "public"}
+                      onChange={(event) =>
+                        setSettings((old) => (old ? updateActivePostgresEnv(old, { dbSchema: event.target.value }) : old))
+                      }
+                    />
+                  </label>
+                  <label>
+                    {t("settings.dbUser")}
+                    <input
+                      value={getActivePostgresEnv(settings)?.dbUser ?? ""}
+                      onChange={(event) =>
+                        setSettings((old) => (old ? updateActivePostgresEnv(old, { dbUser: event.target.value }) : old))
+                      }
+                    />
+                  </label>
+                  <label>
+                    {t("settings.dbPassword")}
+                    <input
+                      type="password"
+                      value={getActivePostgresEnv(settings)?.dbPassword ?? ""}
+                      onChange={(event) =>
+                        setSettings((old) =>
+                          old ? updateActivePostgresEnv(old, { dbPassword: event.target.value }) : old
+                        )
+                      }
+                    />
+                  </label>
+                </>
+              ) : null}
+              {activeVectorBackend === "sqlite_embedded" ? (
+                <label>
+                  {t("settings.sqliteFilePath")}
+                  <input
+                    value={getActivePostgresEnv(settings)?.sqliteFilePath ?? ""}
+                    placeholder={t("settings.sqliteFilePathPlaceholder")}
+                    onChange={(event) =>
+                      setSettings((old) =>
+                        old ? updateActivePostgresEnv(old, { sqliteFilePath: event.target.value }) : old
+                      )
+                    }
+                  />
+                </label>
+              ) : null}
+              {activeVectorBackend === "qdrant_embedded" ? (
+                <label>
+                  {t("settings.qdrantLocalPath")}
+                  <input
+                    value={getActivePostgresEnv(settings)?.qdrantLocalPath ?? ""}
+                    placeholder={t("settings.qdrantLocalPathPlaceholder")}
+                    onChange={(event) =>
+                      setSettings((old) =>
+                        old ? updateActivePostgresEnv(old, { qdrantLocalPath: event.target.value }) : old
+                      )
+                    }
+                  />
+                </label>
+              ) : null}
               <label>
                 {t("settings.vectorTable")}
                 <input

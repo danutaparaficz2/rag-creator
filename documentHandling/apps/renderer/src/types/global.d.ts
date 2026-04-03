@@ -35,6 +35,7 @@ declare global {
       getDatabaseConnectionState: () => Promise<{ ready: boolean }>;
       runHealthCheck: () => Promise<{
         postgres: { status: "ok" | "error"; message: string };
+        vectorDatabase?: { status: "ok" | "error"; message: string };
         pythonWorker: { status: "ok" | "error"; message: string };
       }>;
       exportDocumentsCsv: () => Promise<string>;

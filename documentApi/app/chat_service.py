@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import time
 
 from openai import OpenAI
 
@@ -13,14 +14,14 @@ from .config import (
 from .crypto_service import CryptoService
 from .models import AppSettings, ChatMessage, ChatRequest, ChatResponse, ChatSettings
 from .services.thread_pool import run_in_worker_pool
-from .vector_service import PostgresVectorService
+from .vector_store.protocol import VectorStore
 from .worker import embed_texts
 
 
 class ChatService:
     def __init__(
         self,
-        vector_service: PostgresVectorService,
+        vector_service: VectorStore,
         crypto_service: CryptoService,
     ) -> None:
         self._vs = vector_service
@@ -38,6 +39,7 @@ class ChatService:
         self._chat_settings = persist_chat_settings(chat_settings)
 
     async def chat(self, request: ChatRequest) -> ChatResponse:
+        started_at = time.perf_counter()
         query = request.message
         history = request.history or []
         preferred_language = request.language
@@ -119,11 +121,32 @@ class ChatService:
                 max_tokens=self._chat_settings.max_tokens,
             )
             answer = completion.choices[0].message.content or ""
+            usage = getattr(completion, "usage", None)
+            prompt_tokens = int(getattr(usage, "prompt_tokens", 0) or 0)
+            completion_tokens = int(getattr(usage, "completion_tokens", 0) or 0)
+            total_tokens = int(getattr(usage, "total_tokens", 0) or 0)
         except Exception as exc:
             answer = f"LLM-Anfrage fehlgeschlagen: {exc}"
+            prompt_tokens = 0
+            completion_tokens = 0
+            total_tokens = 0
+
+        elapsed_ms = max(1, int((time.perf_counter() - started_at) * 1000))
+        tokens_per_second = (
+            round((completion_tokens / (elapsed_ms / 1000.0)), 2)
+            if completion_tokens > 0
+            else 0.0
+        )
 
         return ChatResponse(
             answer=answer,
             context_chunks=context_chunks,
             encrypted_payload=encrypted_payload,
+            metrics={
+                "elapsedMs": elapsed_ms,
+                "promptTokens": prompt_tokens,
+                "completionTokens": completion_tokens,
+                "totalTokens": total_tokens,
+                "tokensPerSecond": tokens_per_second,
+            },
         )

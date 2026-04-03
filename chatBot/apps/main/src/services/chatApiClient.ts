@@ -5,6 +5,7 @@ const DEFAULT_BASE_URL = "http://localhost:8000";
 export interface PostgresEnvironment {
   id: string;
   name: string;
+  vectorBackend?: "postgres" | "sqlite_embedded" | "qdrant_embedded";
   dbHost: string;
   dbPort: number;
   dbName: string;
@@ -12,6 +13,8 @@ export interface PostgresEnvironment {
   dbPassword: string;
   dbSchema: string;
   dbTableName: string;
+  sqliteFilePath?: string;
+  qdrantLocalPath?: string;
 }
 
 export interface AppSettings {

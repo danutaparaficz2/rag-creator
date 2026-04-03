@@ -61,11 +61,15 @@ class JobRecord(BaseModel):
     model_config = {"populate_by_name": True}
 
 
+VectorBackend = Literal["postgres", "sqlite_embedded", "qdrant_embedded"]
+
+
 class PostgresEnvironment(BaseModel):
-    """Eine adressierbare Postgres-Zielumgebung (eigene DB und/oder Schema + Tabelle)."""
+    """Eine adressierbare Zielumgebung: Postgres (pgvector) oder eingebettete Vektor-Backends ohne Server."""
 
     environment_id: str = Field(alias="id")
     name: str = Field("Standard", alias="name")
+    vector_backend: VectorBackend = Field("postgres", alias="vectorBackend")
     db_host: str = Field("localhost", alias="dbHost")
     db_port: int = Field(5432, alias="dbPort")
     db_name: str = Field("rag", alias="dbName")
@@ -73,6 +77,10 @@ class PostgresEnvironment(BaseModel):
     db_password: str = Field("", alias="dbPassword")
     db_schema: str = Field("public", alias="dbSchema")
     db_table_name: str = Field("rag_documents", alias="dbTableName")
+    # Eingebettet: SQLite-Datei (leer = automatisch unter ~/RAGIngestStudio/vector_sqlite/<id>.sqlite)
+    sqlite_file_path: str = Field("", alias="sqliteFilePath")
+    # Eingebettet: Qdrant lokal ohne Server (leer = ~/RAGIngestStudio/vector_qdrant/<id>/)
+    qdrant_local_path: str = Field("", alias="qdrantLocalPath")
 
     model_config = {"populate_by_name": True}
 
@@ -187,6 +195,7 @@ class ChatResponse(BaseModel):
     answer: str
     context_chunks: list[dict] = Field(default_factory=list, alias="contextChunks")
     encrypted_payload: str = Field("", alias="encryptedPayload")
+    metrics: dict[str, float | int] = Field(default_factory=dict)
 
     model_config = {"populate_by_name": True}
 

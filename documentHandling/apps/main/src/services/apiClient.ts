@@ -356,6 +356,7 @@ export class ApiClient {
 
   public async runHealthCheck(): Promise<{
     postgres: { status: "ok" | "error"; message: string };
+    vectorDatabase?: { status: "ok" | "error"; message: string };
     pythonWorker: { status: "ok" | "error"; message: string };
   }> {
     return this.get("/api/health");

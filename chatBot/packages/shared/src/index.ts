@@ -15,6 +15,13 @@ export interface ChatResponse {
   answer: string;
   contextChunks: ContextChunk[];
   encryptedPayload: string;
+  metrics?: {
+    elapsedMs?: number;
+    promptTokens?: number;
+    completionTokens?: number;
+    totalTokens?: number;
+    tokensPerSecond?: number;
+  };
 }
 
 export interface ContextChunk {

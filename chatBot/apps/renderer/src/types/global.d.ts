@@ -3,6 +3,7 @@ import type { ChatLocale, ChatMessage, ChatResponse, ChatSettings } from "@ragch
 interface PostgresEnvironment {
   id: string;
   name: string;
+  vectorBackend?: "postgres" | "sqlite_embedded" | "qdrant_embedded";
   dbHost: string;
   dbPort: number;
   dbName: string;
@@ -10,6 +11,8 @@ interface PostgresEnvironment {
   dbPassword: string;
   dbSchema: string;
   dbTableName: string;
+  sqliteFilePath?: string;
+  qdrantLocalPath?: string;
 }
 
 interface AppSettings {

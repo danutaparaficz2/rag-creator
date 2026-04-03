@@ -14,6 +14,7 @@ def _default_app_settings() -> AppSettings:
             PostgresEnvironment(
                 environment_id="default",
                 name="Standard",
+                vector_backend="postgres",
                 db_host="localhost",
                 db_port=5432,
                 db_name="rag",
@@ -21,6 +22,8 @@ def _default_app_settings() -> AppSettings:
                 db_password="",
                 db_schema="public",
                 db_table_name="rag_documents",
+                sqlite_file_path="",
+                qdrant_local_path="",
             )
         ],
         chunk_size=900,
@@ -60,6 +63,8 @@ def ensure_directories() -> None:
     paths["base"].mkdir(parents=True, exist_ok=True)
     paths["files"].mkdir(parents=True, exist_ok=True)
     paths["corpus"].mkdir(parents=True, exist_ok=True)
+    (paths["base"] / "vector_sqlite").mkdir(parents=True, exist_ok=True)
+    (paths["base"] / "vector_qdrant").mkdir(parents=True, exist_ok=True)
 
 
 _LEGACY_DB_KEYS = frozenset(
