@@ -51,7 +51,7 @@ flowchart TB
   MAIN -->|HTTP REST\nlocalhost:8000| API
   CMAIN -->|HTTP REST\nlocalhost:8000| API
 
-  subgraph STORE[(~/RAGIngestStudio)]
+  subgraph dataStore ["~/RAGIngestStudio"]
     FILES[files/\nOriginaldateien]
     CORPUS[corpus/\nJSONL + optional MD]
     IDX[index.sqlite\nDocs + Jobs]
@@ -98,9 +98,9 @@ flowchart LR
 
   JSONL --> CHUNK[Chunking\naus Corpus-Zeilen]
   CHUNK --> EMB[Embeddings\nSentence-Transformers\nWorker-Threadpool]
-  EMB --> VS[(Vektor-Store\nje nach Setting:\nPostgres, SQLite,\nQdrant embedded)]
-  VS --> META[(Status & Metadaten\nindex.sqlite)]
-  META --> UI[Fortschritt &\nDashboard]
+  EMB --> VS[(Vektor-Store\nje nach Setting\nPostgres SQLite\nQdrant embedded)]
+  VS --> META[(Status Metadaten\nindex.sqlite)]
+  META --> UI[Fortschritt\nDashboard]
 ```
 
 ### Schritte der Pipeline
