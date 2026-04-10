@@ -23,7 +23,7 @@ documentHandling/    Dokumentverwaltung + Ingestion UI (Electron + Vite)
   apps/python_worker/ Optionaler Standalone-Worker (Legacy); Standardweg ist documentApi
   packages/shared/   IPC-Typen und gemeinsame Typen fuer die Handling-App
 chatBot/             Chat UI (Electron); Main spricht ebenfalls per HTTP mit documentApi
-documentApi/         FastAPI (:8000), IngestService, ChatService, Parsing, Embeddings, Vector Stores
+documentApi/         FastAPI (Standard-Port 8000), IngestService, ChatService, Parsing, Embeddings, Vector Stores
 scripts/             Startskripte (u. a. documentApi Runner mit documentApi/.venv)
 ```
 
@@ -46,10 +46,10 @@ flowchart TB
     CUI --> CMAIN
   end
 
-  API[documentApi\nFastAPI :8000\nIngest + Chat + Jobs]
+  API[documentApi\nFastAPI Port 8000\nIngest + Chat + Jobs]
 
-  MAIN -->|HTTP REST\nlocalhost:8000| API
-  CMAIN -->|HTTP REST\nlocalhost:8000| API
+  MAIN -->|HTTP REST\nBasis-URL konfigurierbar| API
+  CMAIN -->|HTTP REST\nBasis-URL konfigurierbar| API
 
   subgraph dataStore ["~/RAGIngestStudio"]
     FILES[files/\nOriginaldateien]
@@ -76,7 +76,7 @@ flowchart TB
 
 1. **Zwei Frontends, ein Backend** — Ingest-UI und Chat-App sprechen beide mit **documentApi**; Metadaten und Vektoren liegen konsolidiert vor.
 2. **IPC nur in Document Handling** — Die Renderer-UI nutzt typisierte IPC-Aufrufe zum Main-Prozess; **kein** direkter Zugriff auf Python oder Vektor-DBs aus dem Renderer.
-3. **Electron Main als lokaler Client** — Main bündelt Aktionen und ruft die REST-API auf (u. a. Upload, Jobs, Corpus, Settings). Die persistente Arbeit (Parsing, Queue, Embeddings) laeuft im **documentApi**-Prozess.
+3. **Electron Main als Client der REST-API** — Main bündelt Aktionen und ruft die API per HTTP auf (u. a. Upload, Jobs, Corpus, Settings). Die **Basis-URL** ist nicht auf `localhost` festgelegt (siehe Abschnitt *API-Basis-URL*). Die persistente Arbeit (Parsing, Queue, Embeddings) laeuft im **documentApi**-Prozess.
 4. **Gemeinsame Artefakte** — Originaldateien, Corpus, SQLite-Index und Einstellungen liegen unter derselben Basis; das Backend liest/schreibt diese Pfade.
 
 ## Ingest-Pipeline mit Dokument-Aufbereitung
@@ -165,17 +165,37 @@ npm run dev
 
 Das startet:
 
-- **documentApi** (FastAPI/Uvicorn) auf `http://127.0.0.1:8000`
+- **documentApi** (FastAPI/Uvicorn) standardmaessig auf `http://127.0.0.1:8000` (siehe *API-Basis-URL* fuer LAN oder anderen Host)
 - Vite Renderer auf `http://localhost:5173`
-- Electron Main Process (startet erst, wenn Renderer **und** Port 8000 bereit sind)
+- Electron Main Process (startet erst, wenn Renderer **und** TCP-Port **8000 auf dieser Maschine** bereit sind — typisch die lokale API)
 
 Nur die API in einem eigenen Terminal: `npm run dev:api`
 
-**Chat Bot** — separat, ebenfalls gegen dieselbe API:
+**Chat Bot** — separat, ebenfalls gegen dieselbe (oder eine andere erreichbare) API-Instanz:
 
 ```bash
 npm run dev:chat
 ```
+
+### API-Basis-URL (localhost, LAN-IP oder anderer Host)
+
+Die Electron-Apps (**documentHandling** und **chatBot**) lesen die API-Adresse aus der Umgebungsvariable **`RAG_API_URL`**. Standard ist `http://localhost:8000`, es kann aber z. B. `http://192.168.1.10:8000` oder ein anderer erreichbarer Host sein (gleiches Netzwerk, VPN, entfernter Server).
+
+- **Server im LAN erreichbar machen:** Uvicorn lauscht im Standard nur auf `127.0.0.1`. Fuer Zugriff von anderen Geraeten im Netzwerk **`DOCUMENT_API_HOST=0.0.0.0`** setzen und die API starten (Port **8000** in Firewall freigeben). Beispiel PowerShell:
+
+```powershell
+$env:DOCUMENT_API_HOST="0.0.0.0"
+npm run dev:api
+```
+
+- **Clients auf dieselbe URL zeigen:** Vor dem Start der jeweiligen Electron-App `RAG_API_URL` setzen, z. B.:
+
+```powershell
+$env:RAG_API_URL="http://192.168.1.10:8000"
+npm run dev
+```
+
+**Hinweis:** `npm run dev` startet weiterhin eine **lokale** documentApi und wartet auf lokalen Port 8000. Wenn die API **nur** auf einem anderen Rechner laeuft, starte API und Clients dort passend getrennt (ohne die gebündelte lokale API), oder nutze oben `DOCUMENT_API_HOST`, damit ein Rechner im LAN dieselbe Maschine anspricht.
 
 Hinweis zu `qdrant_embedded`: Der API-Runner startet standardmaessig **ohne** `uvicorn --reload`, da der Qdrant-Ordner exklusiv gelockt wird.  
 Reload nur explizit aktivieren:
