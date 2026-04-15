@@ -1,0 +1,5 @@
+system_version,answer_relevance_count,answer_relevance_mean,answer_relevance_std,answer_relevance_min,answer_relevance_max,context_relevance_count,context_relevance_mean,context_relevance_std,context_relevance_min,context_relevance_max,groundedness_count,groundedness_mean,groundedness_std,groundedness_min,groundedness_max,answer_correctness_count,answer_correctness_mean,answer_correctness_std,answer_correctness_min,answer_correctness_max
+R1_-_Josn,21,0.3857,0.4053,0.0,1.0,0,,,,,0,,,,,11,0.1364,0.3233,0.0,1.0
+R1_-_MD,21,0.4762,0.3548,0.0,1.0,0,,,,,0,,,,,17,0.1706,0.346,0.0,1.0
+R2_-_Json,21,0.6095,0.339,0.0,1.0,0,,,,,0,,,,,19,0.0947,0.181,0.0,0.6
+R2_-_MD,21,0.7048,0.2439,0.0,1.0,0,,,,,0,,,,,19,0.2158,0.3149,0.0,1.0
