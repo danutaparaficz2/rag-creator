@@ -12,3 +12,5 @@ venv
 RAGIngestStudio
 settings.json
 chat_settings.json
+data/
+
