@@ -40,10 +40,16 @@ _PROJECT_DIR = Path(__file__).resolve().parent.parent
 
 
 def get_base_directory() -> Path:
+    env = os.environ.get("DOCUMENT_API_BASE_DIR")
+    if env:
+        return Path(env).expanduser()
     return Path.home() / "RAGIngestStudio"
 
 
 def get_settings_path() -> Path:
+    env = os.environ.get("DOCUMENT_API_SETTINGS_PATH")
+    if env:
+        return Path(env)
     return _PROJECT_DIR / "settings.json"
 
 
@@ -140,6 +146,9 @@ def save_settings(settings: AppSettings) -> AppSettings:
 
 
 def get_chat_settings_path() -> Path:
+    env = os.environ.get("DOCUMENT_API_CHAT_SETTINGS_PATH")
+    if env:
+        return Path(env)
     return _PROJECT_DIR / "chat_settings.json"
 
 
