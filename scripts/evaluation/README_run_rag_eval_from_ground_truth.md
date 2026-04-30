@@ -133,15 +133,15 @@ Example images from the latest local-judge run:
 
 ### Answer Relevance Heatmap
 
-![Answer relevance heatmap](../../outputs/eval_run_not_local_judge/fragerunden_heatmap_answer_relevance.png)
+![Answer relevance heatmap](./assets/fragerunden_heatmap_answer_relevance.png)
 
 ### Answer Correctness Heatmap
 
-![Answer correctness heatmap](../../outputs/eval_run_not_local_judge/fragerunden_heatmap_answer_correctness.png)
+![Answer correctness heatmap](./assets/fragerunden_heatmap_answer_correctness.png)
 
 ### System Means
 
-![System means](../../outputs/eval_run_not_local_judge/fragerunden_system_means.png)
+![System means](./assets/fragerunden_system_means.png)
 
 ## Key CLI Arguments
 
