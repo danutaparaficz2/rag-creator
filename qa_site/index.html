@@ -18,37 +18,19 @@
 
     <main class="shell">
       <header class="hero">
-        <div class="brand-row">
-          <img class="brand-logo" src="./assets/not-logo.jpg" alt="NOT logo" />
-          <p class="kicker">Local RAG Workspace</p>
+        <p class="kicker">Local RAG Workspace</p>
+        <div class="hero-image-wrap">
+          <img
+            class="hero-image"
+            src="./assets/not-observatory.jpg"
+            alt="Nordic Optical Telescope above clouds"
+          />
+          <img class="brand-logo overlay-top-left" src="./assets/not-logo.jpg" alt="NOT logo" />
+          <img class="notbot-logo overlay-bottom-left" src="./assets/notbot.png" alt="NOTBot logo" />
         </div>
-        <h1>NOTBot</h1>
-        <p class="lead">
-          Ask questions against your indexed corpus and inspect answer evidence,
-          source chunks, and model metrics in one place.
-        </p>
-        <img
-          class="hero-image"
-          src="./assets/not-observatory.jpg"
-          alt="Nordic Optical Telescope above clouds"
-        />
       </header>
 
       <section class="ask-panel card">
-        <div class="row row-top">
-          <label class="field">
-            <span>API Base URL</span>
-            <input id="apiBaseUrl" type="text" value="http://127.0.0.1:8000" />
-          </label>
-          <label class="field field-sm">
-            <span>Language</span>
-            <select id="language">
-              <option value="en" selected>English</option>
-              <option value="de">Deutsch</option>
-            </select>
-          </label>
-        </div>
-
         <label class="field">
           <span>Question</span>
           <textarea id="questionInput" rows="4" placeholder="e.g. What are the spectroscopy setup constraints for ALFOSC?"></textarea>
@@ -83,6 +65,22 @@
           <span id="historyCount" class="pill">0 items</span>
         </div>
         <div id="historyList" class="history-list"></div>
+      </section>
+
+      <section class="card">
+        <div class="row row-top">
+          <label class="field">
+            <span>API Base URL</span>
+            <input id="apiBaseUrl" type="text" value="http://127.0.0.1:8000" />
+          </label>
+          <label class="field field-sm">
+            <span>Language</span>
+            <select id="language">
+              <option value="en" selected>English</option>
+              <option value="de">Deutsch</option>
+            </select>
+          </label>
+        </div>
       </section>
     </main>
 

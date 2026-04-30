@@ -58,15 +58,32 @@ body {
   animation: rise 0.45s ease both;
 }
 
-.brand-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
+.hero-image-wrap {
+  position: relative;
+  width: 100%;
+}
+
+.overlay-top-left {
+  position: absolute;
+  top: 40px;
+  left: 16px;
+}
+
+.overlay-bottom-left {
+  position: absolute;
+  bottom: -50px;
+  left: 16px;
+}
+
+.notbot-logo {
+  width: 220px;
+  height: 220px;
+  object-fit: contain;
 }
 
 .brand-logo {
-  width: 56px;
-  height: 56px;
+  width: 100px;
+  height: 100px;
   border-radius: 999px;
   object-fit: cover;
   border: 2px solid #d7d7cc;
@@ -103,8 +120,8 @@ h1 {
 .hero-image {
   margin-top: 14px;
   width: 100%;
-  max-height: 290px;
-  object-fit: cover;
+  height: auto;
+  object-fit: contain;
   border-radius: 14px;
   border: 1px solid #d8d8cc;
   box-shadow: 0 10px 26px rgba(23, 29, 40, 0.18);

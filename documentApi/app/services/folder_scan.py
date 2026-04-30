@@ -14,7 +14,7 @@ _SKIP_DIR_NAMES = {
     ".vs",
 }
 
-_ALLOWED_EXTENSIONS = {".pdf", ".txt"}
+_ALLOWED_EXTENSIONS = {".pdf", ".txt", ".md"}
 
 
 def iter_files_recursive(root_dir: str) -> list[tuple[str, str]]:
