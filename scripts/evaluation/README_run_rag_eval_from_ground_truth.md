@@ -111,6 +111,52 @@ If evaluator runs (default):
 - `fragerunden_eval_by_system.csv`
   - Aggregated summary by system version.
 
+## How Metrics Are Measured
+
+Metrics are produced by `scripts/evaluation/evaluate_fragerunden.py` using an OpenAI-compatible judge model (`--eval-model` at `--eval-base-url`).
+
+For each row, the judge receives:
+
+- `question`
+- generated `answer`
+- retrieved `context` (if present)
+- `ground_truth` reference answer (if present)
+
+The judge is prompted to return JSON with scores from `0.0` to `1.0` (strict, conservative scoring):
+
+- `answer_relevance`
+  - How directly and usefully the generated answer addresses the question.
+  - Always expected when question/answer are present.
+- `context_relevance`
+  - How relevant the retrieved context is to the question.
+  - `null` when no context is provided.
+- `groundedness`
+  - How well the generated answer is supported by the retrieved context.
+  - `null` when no context is provided.
+- `answer_correctness`
+  - Semantic correctness of the generated answer versus `ground_truth`.
+  - `null` when no ground truth is provided.
+
+Implementation details:
+
+- Scores are clamped to `[0.0, 1.0]`.
+- Invalid/non-numeric metric values are treated as `null`.
+- A short `notes` field (max 240 chars) is also saved per row.
+
+How aggregation in `fragerunden_eval_by_system.csv` works:
+
+- Grouping key: `system_version`.
+- For each metric column, the script computes: `count`, `mean`, `std`, `min`, `max`.
+- `count` is the number of non-null scores for that metric.
+- This is why `context_relevance_count`, `groundedness_count`, or `answer_correctness_count` can be smaller than total rows.
+
+Interpretation guideline (practical):
+
+- `>= 0.9`: excellent
+- `0.75 - 0.9`: good
+- `0.5 - 0.75`: mixed
+- `< 0.5`: weak
+
 ## Visualization
 
 After evaluation, generate charts with `scripts/evaluation/visualize_fragerunden_eval.py`:
