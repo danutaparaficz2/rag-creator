@@ -1,6 +1,6 @@
 # run_rag_eval_from_ground_truth.py
 
-This document explains how `scripts/run_rag_eval_from_ground_truth.py` works and how to use it.
+This document explains how `scripts/evaluation/run_rag_eval_from_ground_truth.py` works and how to use it.
 
 ## What This Script Does
 
@@ -9,7 +9,7 @@ The script runs an end-to-end RAG evaluation pipeline:
 1. Reads questions and reference answers from a ground-truth file.
 2. Sends each question to your RAG API (`/api/chat`).
 3. Saves generated answers and normalized ground truth to CSV.
-4. Optionally runs `scripts/evaluate_fragerunden.py` to score the answers.
+4. Optionally runs `scripts/evaluation/evaluate_fragerunden.py` to score the answers.
 
 ## Supported Input Formats
 
@@ -48,7 +48,7 @@ If you run evaluation (do not use `--skip-eval`), you also need a judge endpoint
 Run full pipeline (generate + evaluate):
 
 ```bash
-python scripts/run_rag_eval_from_ground_truth.py \
+python scripts/evaluation/run_rag_eval_from_ground_truth.py \
   --ground-truth-file outputs/not_questions_ground_truth_input.txt \
   --api-base-url http://127.0.0.1:8000 \
   --system-version legacy_ollama_en_qwen25_7b \
@@ -58,7 +58,7 @@ python scripts/run_rag_eval_from_ground_truth.py \
 Generate only (skip evaluator):
 
 ```bash
-python scripts/run_rag_eval_from_ground_truth.py \
+python scripts/evaluation/run_rag_eval_from_ground_truth.py \
   --ground-truth-file outputs/not_questions_ground_truth_input.txt \
   --api-base-url http://127.0.0.1:8000 \
   --outdir outputs/eval_run_not \
@@ -68,7 +68,7 @@ python scripts/run_rag_eval_from_ground_truth.py \
 Limit to first N questions:
 
 ```bash
-python scripts/run_rag_eval_from_ground_truth.py \
+python scripts/evaluation/run_rag_eval_from_ground_truth.py \
   --ground-truth-file outputs/not_questions_ground_truth_input.txt \
   --outdir outputs/eval_run_not_quick \
   --limit 5
@@ -81,7 +81,7 @@ You can keep RAG answering local and also run the evaluator with a local judge e
 Example with Ollama:
 
 ```bash
-OPENAI_API_KEY=ollama python scripts/run_rag_eval_from_ground_truth.py \
+OPENAI_API_KEY=ollama python scripts/evaluation/run_rag_eval_from_ground_truth.py \
   --ground-truth-file outputs/not_questions_ground_truth_input.txt \
   --api-base-url http://127.0.0.1:8000 \
   --system-version legacy_ollama_en_qwen25_7b \
@@ -148,5 +148,9 @@ Check:
 
 ## Related Scripts
 
-- `scripts/run_rag_eval_from_ground_truth.py`
-- `scripts/evaluate_fragerunden.py`
+- `scripts/evaluation/run_rag_eval_from_ground_truth.py`
+- `scripts/evaluation/evaluate_fragerunden.py`
+
+Compatibility note:
+
+- Wrapper launchers remain at the old `scripts/*.py` paths, so existing commands continue to work.

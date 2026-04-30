@@ -197,7 +197,7 @@ def run_evaluator(
 ) -> None:
     cmd = [
         sys.executable,
-        str(repo_root / "scripts" / "evaluate_fragerunden.py"),
+        str(repo_root / "scripts" / "evaluation" / "evaluate_fragerunden.py"),
         "--input",
         str(generated_qa_csv),
         "--ground-truth",
@@ -287,7 +287,7 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
-    repo_root = Path(__file__).resolve().parent.parent
+    repo_root = Path(__file__).resolve().parents[2]
     outdir = args.outdir
     outdir.mkdir(parents=True, exist_ok=True)
 
