@@ -7,7 +7,6 @@ const els = {
   status: document.getElementById("status"),
   resultPanel: document.getElementById("resultPanel"),
   answerText: document.getElementById("answerText"),
-  metrics: document.getElementById("metrics"),
   sourceCount: document.getElementById("sourceCount"),
   sourcesList: document.getElementById("sourcesList"),
   historyCount: document.getElementById("historyCount"),
@@ -77,29 +76,12 @@ function renderResult(question, data) {
 
   const chunks = data.contextChunks || data.context_chunks || [];
   renderSources(chunks);
-  renderMetrics(data.metrics || {}, chunks.length);
 
   if (!chunks.length) {
     els.sourcesList.innerHTML = '<div class="source-item">No source chunks returned.</div>';
   }
 
   setStatus(`Answered: ${truncate(question, 64)}`);
-}
-
-function renderMetrics(metrics, chunkCount) {
-  const entries = [
-    ["Source chunks", chunkCount],
-    ["Duration (ms)", safeMetric(metrics.duration_ms)],
-    ["Prompt tokens", safeMetric(metrics.prompt_tokens)],
-    ["Completion tokens", safeMetric(metrics.completion_tokens)],
-  ];
-
-  els.metrics.innerHTML = entries
-    .map(
-      ([label, value]) =>
-        `<div class="metric"><div class="metric-label">${escapeHtml(label)}</div><div class="metric-value">${escapeHtml(String(value))}</div></div>`
-    )
-    .join("");
 }
 
 function renderSources(chunks) {
@@ -166,10 +148,6 @@ function loadHistory() {
 
 function setStatus(text) {
   els.status.textContent = text;
-}
-
-function safeMetric(value) {
-  return value === undefined || value === null || Number.isNaN(value) ? "n/a" : value;
 }
 
 function truncate(text, max) {
