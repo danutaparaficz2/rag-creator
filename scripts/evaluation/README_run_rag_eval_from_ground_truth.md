@@ -111,6 +111,38 @@ If evaluator runs (default):
 - `fragerunden_eval_by_system.csv`
   - Aggregated summary by system version.
 
+## Visualization
+
+After evaluation, generate charts with `scripts/evaluation/visualize_fragerunden_eval.py`:
+
+```bash
+python scripts/evaluation/visualize_fragerunden_eval.py \
+  --rows outputs/eval_run_not_local_judge/fragerunden_eval_rows.csv \
+  --summary outputs/eval_run_not_local_judge/fragerunden_eval_by_system.csv \
+  --outdir outputs/eval_run_not_local_judge
+```
+
+The visualization script writes:
+
+- `fragerunden_heatmap_answer_relevance.png`
+- `fragerunden_heatmap_answer_correctness.png`
+- `fragerunden_system_means.png`
+- `fragerunden_per_question_best_system.csv`
+
+Example images from the latest local-judge run:
+
+### Answer Relevance Heatmap
+
+![Answer relevance heatmap](../../outputs/eval_run_not_local_judge/fragerunden_heatmap_answer_relevance.png)
+
+### Answer Correctness Heatmap
+
+![Answer correctness heatmap](../../outputs/eval_run_not_local_judge/fragerunden_heatmap_answer_correctness.png)
+
+### System Means
+
+![System means](../../outputs/eval_run_not_local_judge/fragerunden_system_means.png)
+
 ## Key CLI Arguments
 
 - `--ground-truth-file` (required): Input file path.
